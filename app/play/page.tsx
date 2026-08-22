@@ -32,7 +32,7 @@ export default function PlayPage() {
   const [filingBusy, setFilingBusy] = useState(false);
   const create = useMutation(api.playthroughs.create);
   const applyChoice = useMutation(api.playthroughs.applyChoice);
-  const bankDeposit = useMutation(api.playthroughs.bankDeposit);
+  const bankTransfer = useMutation(api.playthroughs.bankTransfer);
   const bankLoan = useMutation(api.playthroughs.bankLoan);
   const foodBankDonate = useMutation(api.playthroughs.foodBankDonate);
   const advanceSeason = useMutation(api.playthroughs.advanceSeason);
@@ -85,6 +85,25 @@ export default function PlayPage() {
     );
   }, [playthrough]);
 
+  const requiredActivities = useMemo(() => {
+    if (!playthrough) return [];
+    const fromScenarios = scenariosForSeason(playthrough.season).map(
+      (scenario) => ({
+        id: scenario.id,
+        label: scenario.title,
+        done: playthrough.completedScenarioIds.includes(scenario.id),
+      }),
+    );
+    if (playthrough.season === "april") {
+      fromScenarios.push({
+        id: "april-file-taxes",
+        label: "File Taxes",
+        done: playthrough.status !== "playing",
+      });
+    }
+    return fromScenarios;
+  }, [playthrough]);
+
   const canAdvanceSeason = useMemo(() => {
     if (!playthrough) return false;
     return seasonActivitiesComplete(
@@ -125,13 +144,14 @@ export default function PlayPage() {
     }
   }
 
-  async function onBankDeposit(
-    deposits: Array<{ accountId: BankAccountId; amount: number }>,
-  ) {
+  async function onBankTransfer(args: {
+    deposits: Array<{ accountId: BankAccountId; amount: number }>;
+    withdrawals: Array<{ accountId: BankAccountId; amount: number }>;
+  }) {
     if (!playthroughId) return;
     setChoiceBusy(true);
     try {
-      await bankDeposit({ playthroughId, deposits });
+      await bankTransfer({ playthroughId, ...args });
       setSelectedLocation(null);
     } finally {
       setChoiceBusy(false);
@@ -330,6 +350,7 @@ export default function PlayPage() {
           savings={playthrough.investments}
           deductions={playthrough.deductions}
           credits={displayCredits}
+          requiredActivities={requiredActivities}
           canAdvanceSeason={canAdvanceSeason}
           onAdvanceSeason={() => void onAdvanceSeason()}
           advancing={advancing}
@@ -345,7 +366,7 @@ export default function PlayPage() {
           rrspBalance={playthrough.rrspBalance}
           fhsaBalance={playthrough.fhsaBalance}
           busy={choiceBusy}
-          onDeposit={(deposits) => void onBankDeposit(deposits)}
+          onTransfer={(args) => void onBankTransfer(args)}
           onLoan={(amount) => void onBankLoan(amount)}
           onClose={() => setSelectedLocation(null)}
         />

@@ -21,7 +21,7 @@ export const SEASON_LABELS: Record<Season, string> = {
 export const SEASON_LOCATIONS: Record<Season, string[]> = {
   may: ["home", "bank", "foodBank"],
   september: ["university", "bank", "foodBank"],
-  january: ["home", "university", "bank", "foodBank"],
+  january: ["university", "bank", "foodBank"],
   april: ["taxOffice", "bank", "foodBank"],
 };
 
@@ -29,7 +29,7 @@ export const SEASON_LOCATIONS: Record<Season, string[]> = {
 export const SEASON_REQUIRED_SCENARIOS: Record<Season, number> = {
   may: 1,
   september: 1,
-  january: 2,
+  january: 1,
   april: 0,
 };
 

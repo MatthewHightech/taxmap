@@ -68,7 +68,7 @@ function allTuitionOptions(): ScenarioOption[] {
 
 /**
  * Student year scenarios — edit freely.
- * Summer: home · Fall: uni · Winter: gig, trap
+ * Summer: home · Fall: uni · Winter: side gig
  * Bank and Food Bank are persistent locations (not one-shot scenarios).
  */
 export const SCENARIOS: Scenario[] = [
@@ -154,31 +154,6 @@ export const SCENARIOS: Scenario[] = [
           auditRisk: 35,
           addFlags: ["hid_all_gig"],
         },
-      },
-    ],
-  },
-  {
-    id: "jan-fake-deduction",
-    season: "january",
-    locationId: "home",
-    title: "A 'clever' deduction tip",
-    body: "A classmate swears you can write off a gaming PC as a 'school business expense' even though you only stream for fun.",
-    options: [
-      {
-        id: "claim",
-        label: "Claim $900 anyway",
-        description: "Looks like a deduction. Smells like an audit.",
-        effects: {
-          deductions: 900,
-          auditRisk: 22,
-          addFlags: ["claimed_fake_deduction"],
-        },
-      },
-      {
-        id: "pass",
-        label: "Only claim what you can explain",
-        description: "No fake write-off. Cleaner Spring.",
-        effects: { addFlags: ["honest_deductions"] },
       },
     ],
   },

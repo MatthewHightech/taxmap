@@ -3,8 +3,8 @@ import { getScenario } from "./content/scenarios";
 import { mutation, query } from "./_generated/server";
 import { rollAudit } from "./lib/audit";
 import {
-  applyBankDeposits,
   applyBankLoan,
+  applyBankTransfers,
   growSeasonSavings,
 } from "./lib/bank";
 import {
@@ -226,10 +226,16 @@ export const advanceSeason = mutation({
   },
 });
 
-export const bankDeposit = mutation({
+export const bankTransfer = mutation({
   args: {
     playthroughId: v.id("playthroughs"),
     deposits: v.array(
+      v.object({
+        accountId: bankAccountIdValidator,
+        amount: v.number(),
+      }),
+    ),
+    withdrawals: v.array(
       v.object({
         accountId: bankAccountIdValidator,
         amount: v.number(),
@@ -246,17 +252,16 @@ export const bankDeposit = mutation({
       throw new Error("Bank is closed for this run");
     }
 
-    const deposits = {
-      hisa: 0,
-      tfsa: 0,
-      rrsp: 0,
-      fhsa: 0,
-    };
+    const deposits = { hisa: 0, tfsa: 0, rrsp: 0, fhsa: 0 };
+    const withdrawals = { hisa: 0, tfsa: 0, rrsp: 0, fhsa: 0 };
     for (const row of args.deposits) {
       deposits[row.accountId] += Math.max(0, Math.floor(row.amount));
     }
+    for (const row of args.withdrawals) {
+      withdrawals[row.accountId] += Math.max(0, Math.floor(row.amount));
+    }
 
-    const next = applyBankDeposits(doc, deposits);
+    const next = applyBankTransfers(doc, deposits, withdrawals);
 
     await ctx.db.patch("playthroughs", args.playthroughId, {
       cash: next.cash,
@@ -280,7 +285,7 @@ export const bankDeposit = mutation({
 
     const updated = await ctx.db.get("playthroughs", args.playthroughId);
     if (!updated) {
-      throw new Error("Playthrough missing after deposit");
+      throw new Error("Playthrough missing after transfer");
     }
     return { ...updated, netWorth: netWorth(updated) };
   },
@@ -518,7 +523,6 @@ export const seedDemo = mutation({
         "may-home-rent",
         "sept-uni-courses",
         "jan-side-gig",
-        "jan-fake-deduction",
       ],
       unlockedLocationIds: [...SEASON_LOCATIONS.april],
       persona: "student",
@@ -546,7 +550,6 @@ export const seedDemo = mutation({
         "paid_tuition",
         "courses_4",
         "hid_tips",
-        "claimed_fake_deduction",
       ],
     });
   },

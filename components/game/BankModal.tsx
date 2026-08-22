@@ -11,7 +11,7 @@ import {
   type BankBalances,
 } from "../../convex/lib/bank";
 
-type BankView = "menu" | "deposit" | "loan";
+type BankView = "menu" | "accounts" | "loan";
 
 type BankModalProps = {
   cash: number;
@@ -21,7 +21,10 @@ type BankModalProps = {
   fhsaBalance?: number;
   investments: number;
   busy?: boolean;
-  onDeposit: (deposits: Array<{ accountId: BankAccountId; amount: number }>) => void;
+  onTransfer: (args: {
+    deposits: Array<{ accountId: BankAccountId; amount: number }>;
+    withdrawals: Array<{ accountId: BankAccountId; amount: number }>;
+  }) => void;
   onLoan: (amount: number) => void;
   onClose: () => void;
 };
@@ -34,6 +37,13 @@ function parseDollars(raw: string): number {
   return Math.floor(value);
 }
 
+function amountList(balances: BankBalances) {
+  return BANK_ACCOUNTS.map((account) => ({
+    accountId: account.id,
+    amount: balances[account.id],
+  })).filter((row) => row.amount > 0);
+}
+
 export function BankModal({
   cash,
   hisaBalance,
@@ -42,12 +52,14 @@ export function BankModal({
   fhsaBalance,
   investments,
   busy,
-  onDeposit,
+  onTransfer,
   onLoan,
   onClose,
 }: BankModalProps) {
   const [view, setView] = useState<BankView>("menu");
-  const [amounts, setAmounts] = useState<BankBalances>(emptyBankBalances);
+  const [deposits, setDeposits] = useState<BankBalances>(emptyBankBalances);
+  const [withdrawals, setWithdrawals] =
+    useState<BankBalances>(emptyBankBalances);
   const [loanRaw, setLoanRaw] = useState("1000");
   const [error, setError] = useState<string | null>(null);
 
@@ -65,36 +77,57 @@ export function BankModal({
 
   const depositTotal = useMemo(
     () =>
-      BANK_ACCOUNTS.reduce((sum, account) => sum + (amounts[account.id] || 0), 0),
-    [amounts],
+      BANK_ACCOUNTS.reduce(
+        (sum, account) => sum + (deposits[account.id] || 0),
+        0,
+      ),
+    [deposits],
   );
+  const withdrawTotal = useMemo(
+    () =>
+      BANK_ACCOUNTS.reduce(
+        (sum, account) => sum + (withdrawals[account.id] || 0),
+        0,
+      ),
+    [withdrawals],
+  );
+  const netCashChange = withdrawTotal - depositTotal;
 
   const loanAmount = parseDollars(loanRaw);
   const loanDebt = loanDebtForPrincipal(loanAmount);
 
-  function setAccountAmount(id: BankAccountId, raw: string) {
+  function setDeposit(id: BankAccountId, raw: string) {
     setError(null);
-    setAmounts((current) => ({
-      ...current,
-      [id]: parseDollars(raw),
-    }));
+    setDeposits((current) => ({ ...current, [id]: parseDollars(raw) }));
   }
 
-  function submitDeposit() {
-    if (depositTotal <= 0) {
-      setError("Enter at least one deposit amount.");
+  function setWithdraw(id: BankAccountId, raw: string) {
+    setError(null);
+    setWithdrawals((current) => ({ ...current, [id]: parseDollars(raw) }));
+  }
+
+  function submitTransfer() {
+    if (depositTotal <= 0 && withdrawTotal <= 0) {
+      setError("Enter a deposit or withdrawal amount.");
       return;
     }
     if (depositTotal > cash) {
       setError(`You only have $${cash.toLocaleString()} cash.`);
       return;
     }
-    onDeposit(
-      BANK_ACCOUNTS.map((account) => ({
-        accountId: account.id,
-        amount: amounts[account.id],
-      })).filter((row) => row.amount > 0),
-    );
+    for (const account of BANK_ACCOUNTS) {
+      const out = withdrawals[account.id] || 0;
+      if (out > balances[account.id]) {
+        setError(
+          `Not enough in ${account.shortLabel} (balance $${balances[account.id].toLocaleString()}).`,
+        );
+        return;
+      }
+    }
+    onTransfer({
+      deposits: amountList(deposits),
+      withdrawals: amountList(withdrawals),
+    });
   }
 
   function submitLoan() {
@@ -108,6 +141,13 @@ export function BankModal({
     }
     onLoan(loanAmount);
   }
+
+  const transferInvalid =
+    (depositTotal <= 0 && withdrawTotal <= 0) ||
+    depositTotal > cash ||
+    BANK_ACCOUNTS.some(
+      (account) => (withdrawals[account.id] || 0) > balances[account.id],
+    );
 
   return (
     <div
@@ -150,8 +190,8 @@ export function BankModal({
         >
           {view === "menu"
             ? "What do you need?"
-            : view === "deposit"
-              ? "Deposit money"
+            : view === "accounts"
+              ? "Move money"
               : "Take out a loan"}
         </h2>
         <p className="mt-2 text-sm text-tm-cream/80">
@@ -168,16 +208,15 @@ export function BankModal({
               disabled={busy}
               onClick={() => {
                 setError(null);
-                setView("deposit");
+                setView("accounts");
               }}
               className="w-full rounded-xl border-2 border-tm-gold bg-tm-gold/15 px-4 py-4 text-left transition hover:bg-tm-gold/25 disabled:opacity-60"
             >
               <div className="font-[family-name:var(--font-game)] text-lg font-extrabold text-tm-cream">
-                Deposit Money
+                Deposit / Withdraw
               </div>
               <p className="mt-1 text-sm text-tm-cream/70">
-                Fund your HISA, TFSA, RRSP, and FHSA — deposit into as many as you
-                want.
+                Move cash into or out of HISA, TFSA, RRSP, and FHSA.
               </p>
             </button>
             <button
@@ -199,60 +238,97 @@ export function BankModal({
           </div>
         ) : null}
 
-        {view === "deposit" ? (
+        {view === "accounts" ? (
           <div className="mt-5 space-y-3">
             {BANK_ACCOUNTS.map((account) => {
               const balance = balances[account.id];
+              const seasonPct = Math.round(account.seasonGrowthRate * 100);
               return (
-                <label
+                <div
                   key={account.id}
-                  className="block rounded-xl border-2 border-tm-green-300/40 bg-black/35 px-4 py-3"
+                  className="rounded-xl border-2 border-tm-green-300/40 bg-black/35 px-4 py-3"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-[family-name:var(--font-game)] font-bold text-tm-cream">
-                        {account.shortLabel}
-                      </div>
-                      <p className="mt-0.5 text-xs text-tm-cream/65">
-                        {account.blurb}
-                      </p>
-                      <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-tm-green-300">
-                        Balance ${balance.toLocaleString()}
-                        {account.deductible ? " · Deductible" : ""}
-                      </p>
-                    </div>
-                    <div className="w-28 shrink-0">
-                      <div className="text-[10px] font-bold uppercase tracking-wide text-tm-cream/55">
+                  <div className="font-[family-name:var(--font-game)] font-bold text-tm-cream">
+                    {account.shortLabel}
+                  </div>
+                  <p className="mt-0.5 text-xs text-tm-cream/65">
+                    {account.blurb}
+                  </p>
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-tm-green-300">
+                    Balance ${balance.toLocaleString()} · {seasonPct}%/season (
+                    {account.annualGrowthLabel})
+                    {account.deductible ? " · Deductible" : ""}
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-tm-cream/55">
                         Deposit $
-                      </div>
+                      </span>
                       <input
                         type="number"
                         min={0}
                         step={1}
                         inputMode="numeric"
                         disabled={busy}
-                        value={amounts[account.id] || ""}
+                        value={deposits[account.id] || ""}
                         placeholder="0"
                         onChange={(event) =>
-                          setAccountAmount(account.id, event.target.value)
+                          setDeposit(account.id, event.target.value)
                         }
                         className="mt-1 w-full rounded-lg border-2 border-tm-cream/20 bg-black/50 px-2 py-2 font-[family-name:var(--font-game)] text-tm-cream outline-none focus:border-tm-gold"
                       />
-                    </div>
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-tm-cream/55">
+                        Withdraw $
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="numeric"
+                        disabled={busy}
+                        value={withdrawals[account.id] || ""}
+                        placeholder="0"
+                        onChange={(event) =>
+                          setWithdraw(account.id, event.target.value)
+                        }
+                        className="mt-1 w-full rounded-lg border-2 border-tm-cream/20 bg-black/50 px-2 py-2 font-[family-name:var(--font-game)] text-tm-cream outline-none focus:border-tm-gold"
+                      />
+                    </label>
                   </div>
-                </label>
+                </div>
               );
             })}
 
-            <div className="flex items-center justify-between text-sm text-tm-cream/80">
-              <span>Total deposit</span>
-              <span
-                className={`font-[family-name:var(--font-game)] font-extrabold ${
-                  depositTotal > cash ? "text-red-300" : "text-tm-gold"
-                }`}
-              >
-                ${depositTotal.toLocaleString()}
-              </span>
+            <div className="space-y-1 text-sm text-tm-cream/80">
+              <div className="flex justify-between">
+                <span>Total deposit</span>
+                <span
+                  className={`font-[family-name:var(--font-game)] font-extrabold ${
+                    depositTotal > cash ? "text-red-300" : "text-tm-gold"
+                  }`}
+                >
+                  ${depositTotal.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total withdraw</span>
+                <span className="font-[family-name:var(--font-game)] font-extrabold text-tm-cream">
+                  ${withdrawTotal.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Net cash change</span>
+                <span
+                  className={`font-[family-name:var(--font-game)] font-extrabold ${
+                    netCashChange >= 0 ? "text-tm-green-300" : "text-tm-gold"
+                  }`}
+                >
+                  {netCashChange >= 0 ? "+" : "−"}$
+                  {Math.abs(netCashChange).toLocaleString()}
+                </span>
+              </div>
             </div>
 
             {error ? (
@@ -261,11 +337,11 @@ export function BankModal({
 
             <button
               type="button"
-              disabled={busy || depositTotal <= 0 || depositTotal > cash}
-              onClick={submitDeposit}
+              disabled={busy || transferInvalid}
+              onClick={submitTransfer}
               className="w-full rounded-xl border-2 border-tm-gold bg-tm-gold px-4 py-3 font-[family-name:var(--font-game)] font-extrabold text-tm-ink disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {busy ? "Depositing…" : "Confirm deposits"}
+              {busy ? "Updating…" : "Confirm transfers"}
             </button>
           </div>
         ) : null}
@@ -283,8 +359,8 @@ export function BankModal({
                 ))}
               </ul>
               <p className="mt-3 text-xs text-tm-cream/55">
-                Rate: {(LOAN_TERMS.interestRate * 100).toFixed(0)}% flat fee · Min $
-                {LOAN_TERMS.minAmount} · Max $
+                Rate: {(LOAN_TERMS.interestRate * 100).toFixed(0)}% flat fee · Min
+                ${LOAN_TERMS.minAmount} · Max $
                 {LOAN_TERMS.maxAmount.toLocaleString()}
               </p>
             </div>

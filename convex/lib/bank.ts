@@ -4,40 +4,62 @@ export type BankAccountId = "hisa" | "tfsa" | "rrsp" | "fhsa";
 
 export type BankBalances = Record<BankAccountId, number>;
 
+/** Per-season growth. HISA ≈ 4%/year; registered accounts ≈ 8%/year. */
+export const SEASON_GROWTH_RATE: Record<BankAccountId, number> = {
+  hisa: 0.01, // 4% / year
+  tfsa: 0.02, // 8% / year
+  rrsp: 0.02,
+  fhsa: 0.02,
+};
+
 export const BANK_ACCOUNTS: ReadonlyArray<{
   id: BankAccountId;
   label: string;
   shortLabel: string;
   blurb: string;
   deductible: boolean;
+  seasonGrowthRate: number;
+  annualGrowthLabel: string;
 }> = [
   {
     id: "hisa",
     label: "High-Interest Savings (HISA)",
     shortLabel: "HISA",
-    blurb: "Liquid emergency cash. Small interest stub. Not tax-deductible.",
+    blurb:
+      "Liquid emergency cash. Grows ~1% each season (4%/year). Interest is taxable. Not deductible.",
     deductible: false,
+    seasonGrowthRate: SEASON_GROWTH_RATE.hisa,
+    annualGrowthLabel: "4%/year",
   },
   {
     id: "tfsa",
     label: "Tax-Free Savings Account (TFSA)",
     shortLabel: "TFSA",
-    blurb: "Growth is tax-free. Contributions are not deductible.",
+    blurb:
+      "Tax-free growth ~2% each season (8%/year). Contributions are not deductible.",
     deductible: false,
+    seasonGrowthRate: SEASON_GROWTH_RATE.tfsa,
+    annualGrowthLabel: "8%/year",
   },
   {
     id: "rrsp",
     label: "Registered Retirement Savings Plan (RRSP)",
     shortLabel: "RRSP",
-    blurb: "Contributions lower taxable income at filing.",
+    blurb:
+      "Grows ~2% each season (8%/year). Contributions lower taxable income at filing.",
     deductible: true,
+    seasonGrowthRate: SEASON_GROWTH_RATE.rrsp,
+    annualGrowthLabel: "8%/year",
   },
   {
     id: "fhsa",
     label: "First Home Savings Account (FHSA)",
     shortLabel: "FHSA",
-    blurb: "First-home savings. Contributions are deductible.",
+    blurb:
+      "First-home savings. Grows ~2% each season (8%/year). Contributions are deductible.",
     deductible: true,
+    seasonGrowthRate: SEASON_GROWTH_RATE.fhsa,
+    annualGrowthLabel: "8%/year",
   },
 ];
 
@@ -104,10 +126,37 @@ export function loanDebtForPrincipal(principal: number): number {
   return Math.round(principal * (1 + LOAN_INTEREST_RATE));
 }
 
-/** Quarterly growth applied when advancing seasons. */
-export const SEASON_SAVINGS_GROWTH_RATE = 0.05;
+type BankLedger = LedgerFields & {
+  hisaBalance?: number;
+  tfsaBalance?: number;
+  rrspBalance?: number;
+  fhsaBalance?: number;
+};
 
-/** Grow each registered/savings balance by the season rate; sync investments total. */
+type BankLedgerResult = LedgerFields & {
+  hisaBalance: number;
+  tfsaBalance: number;
+  rrspBalance: number;
+  fhsaBalance: number;
+};
+
+function withBalances(
+  ledger: BankLedger,
+  balances: BankBalances,
+  extras: Partial<LedgerFields>,
+): BankLedgerResult {
+  return {
+    ...ledger,
+    ...extras,
+    investments: totalSavings(balances),
+    hisaBalance: balances.hisa,
+    tfsaBalance: balances.tfsa,
+    rrspBalance: balances.rrsp,
+    fhsaBalance: balances.fhsa,
+  };
+}
+
+/** Grow each account by its season rate; sync investments total. */
 export function growSeasonSavings(doc: {
   hisaBalance?: number;
   tfsaBalance?: number;
@@ -125,10 +174,10 @@ export function growSeasonSavings(doc: {
 } {
   const before = balancesFromDoc(doc);
   const after: BankBalances = {
-    hisa: Math.round(before.hisa * (1 + SEASON_SAVINGS_GROWTH_RATE)),
-    tfsa: Math.round(before.tfsa * (1 + SEASON_SAVINGS_GROWTH_RATE)),
-    rrsp: Math.round(before.rrsp * (1 + SEASON_SAVINGS_GROWTH_RATE)),
-    fhsa: Math.round(before.fhsa * (1 + SEASON_SAVINGS_GROWTH_RATE)),
+    hisa: Math.round(before.hisa * (1 + SEASON_GROWTH_RATE.hisa)),
+    tfsa: Math.round(before.tfsa * (1 + SEASON_GROWTH_RATE.tfsa)),
+    rrsp: Math.round(before.rrsp * (1 + SEASON_GROWTH_RATE.rrsp)),
+    fhsa: Math.round(before.fhsa * (1 + SEASON_GROWTH_RATE.fhsa)),
   };
 
   // HISA growth is taxable interest in this simplified sim.
@@ -145,19 +194,9 @@ export function growSeasonSavings(doc: {
 }
 
 export function applyBankDeposits(
-  ledger: LedgerFields & {
-    hisaBalance?: number;
-    tfsaBalance?: number;
-    rrspBalance?: number;
-    fhsaBalance?: number;
-  },
+  ledger: BankLedger,
   deposits: BankBalances,
-): LedgerFields & {
-  hisaBalance: number;
-  tfsaBalance: number;
-  rrspBalance: number;
-  fhsaBalance: number;
-} {
+): BankLedgerResult {
   const amounts = BANK_ACCOUNTS.map((account) => ({
     id: account.id,
     amount: Math.max(0, Math.floor(deposits[account.id] || 0)),
@@ -175,7 +214,6 @@ export function applyBankDeposits(
   const balances = balancesFromDoc(ledger);
   const flags = new Set(ledger.flags);
   let deductions = ledger.deductions;
-  let investmentIncome = ledger.investmentIncome;
 
   for (const row of amounts) {
     if (row.amount <= 0) continue;
@@ -185,23 +223,73 @@ export function applyBankDeposits(
     if (row.deductible) {
       deductions += row.amount;
     }
-    if (row.id === "hisa") {
-      investmentIncome += Math.max(1, Math.floor(row.amount * 0.02));
-    }
   }
 
-  return {
-    ...ledger,
+  return withBalances(ledger, balances, {
     cash: ledger.cash - total,
-    investments: totalSavings(balances),
     deductions,
-    investmentIncome,
     flags: [...flags],
-    hisaBalance: balances.hisa,
-    tfsaBalance: balances.tfsa,
-    rrspBalance: balances.rrsp,
-    fhsaBalance: balances.fhsa,
-  };
+  });
+}
+
+export function applyBankWithdrawals(
+  ledger: BankLedger,
+  withdrawals: BankBalances,
+): BankLedgerResult {
+  const amounts = BANK_ACCOUNTS.map((account) => ({
+    id: account.id,
+    amount: Math.max(0, Math.floor(withdrawals[account.id] || 0)),
+  }));
+
+  const total = amounts.reduce((sum, row) => sum + row.amount, 0);
+  if (total <= 0) {
+    throw new Error("Enter at least one withdrawal");
+  }
+
+  const balances = balancesFromDoc(ledger);
+  for (const row of amounts) {
+    if (row.amount <= 0) continue;
+    if (row.amount > balances[row.id]) {
+      throw new Error(
+        `Not enough in ${row.id.toUpperCase()} to withdraw $${row.amount.toLocaleString()}`,
+      );
+    }
+    balances[row.id] -= row.amount;
+  }
+
+  return withBalances(ledger, balances, {
+    cash: ledger.cash + total,
+  });
+}
+
+/** Apply deposits and withdrawals in one step (deposits first, then withdrawals). */
+export function applyBankTransfers(
+  ledger: BankLedger,
+  deposits: BankBalances,
+  withdrawals: BankBalances,
+): BankLedgerResult {
+  const depositTotal = BANK_ACCOUNTS.reduce(
+    (sum, account) => sum + Math.max(0, Math.floor(deposits[account.id] || 0)),
+    0,
+  );
+  const withdrawTotal = BANK_ACCOUNTS.reduce(
+    (sum, account) =>
+      sum + Math.max(0, Math.floor(withdrawals[account.id] || 0)),
+    0,
+  );
+
+  if (depositTotal <= 0 && withdrawTotal <= 0) {
+    throw new Error("Enter a deposit or withdrawal amount");
+  }
+
+  let next: BankLedger = ledger;
+  if (depositTotal > 0) {
+    next = applyBankDeposits(next, deposits);
+  }
+  if (withdrawTotal > 0) {
+    next = applyBankWithdrawals(next, withdrawals);
+  }
+  return next as BankLedgerResult;
 }
 
 export function applyBankLoan(
