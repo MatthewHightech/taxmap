@@ -58,11 +58,11 @@ export default function HomePage() {
       />
       <div className="absolute inset-0 bg-gradient-to-b from-tm-green-900/70 via-tm-green-900/85 to-tm-green-900" />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-16">
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-6 py-16 md:px-10">
         <h1 className="mt-3 font-[family-name:var(--font-game)] text-6xl font-extrabold tracking-tight text-tm-cream drop-shadow-lg md:text-7xl">
           TaxMap
         </h1>
-        <p className="mt-4 max-w-xl text-lg text-tm-cream/90">
+        <p className="mt-4 max-w-3xl text-lg text-tm-cream/90 md:text-xl">
           A game-of-life, focused on financial education through practical decision making.
         </p>
 
