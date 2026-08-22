@@ -1,0 +1,18 @@
+# TaxMap on Render
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: taxmap
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: .
+    buildCommand: npx convex deploy --cmd 'npm run build'
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: CONVEX_DEPLOY_KEY
+        sync: false

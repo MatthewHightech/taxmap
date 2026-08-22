@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+:root {
+  --tm-green-900: #0b3d2e;
+  --tm-green-700: #145c43;
+  --tm-green-500: #1f7a56;
+  --tm-green-300: #6fbf9a;
+  --tm-cream: #e8f0e9;
+  --tm-gold: #e2b84a;
+  --tm-danger: #c44b3c;
+  --tm-ink: #14201b;
+  --tm-panel: rgba(11, 61, 46, 0.92);
+  --background: #0b3d2e;
+  --foreground: #e8f0e9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-tm-green-900: var(--tm-green-900);
+  --color-tm-green-700: var(--tm-green-700);
+  --color-tm-green-500: var(--tm-green-500);
+  --color-tm-green-300: var(--tm-green-300);
+  --color-tm-cream: var(--tm-cream);
+  --color-tm-gold: var(--tm-gold);
+  --color-tm-danger: var(--tm-danger);
+  --color-tm-ink: var(--tm-ink);
+  --font-sans: var(--font-ui);
+  --font-game: var(--font-game);
+}
+
+body {
+  background:
+    radial-gradient(ellipse at top, #1a5c45 0%, transparent 55%),
+    linear-gradient(180deg, #0b3d2e 0%, #08281e 100%);
+  color: var(--foreground);
+  min-height: 100vh;
+}
