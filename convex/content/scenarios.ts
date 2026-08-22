@@ -25,154 +25,318 @@ export type Scenario = {
   options: ScenarioOption[];
 };
 
+const TUITION_PER_COURSE = 600;
+const TUITION_CREDIT_RATE = 0.15;
+export const MIN_COURSES = 3;
+export const MAX_COURSES = 6;
+
+export function tuitionOption(
+  courses: number,
+  payWith: "cash" | "loan",
+): ScenarioOption {
+  const tuition = courses * TUITION_PER_COURSE;
+  const credit = Math.round(tuition * TUITION_CREDIT_RATE);
+  if (payWith === "cash") {
+    return {
+      id: `courses_${courses}_cash`,
+      label: `Pay cash ($${tuition.toLocaleString()})`,
+      description: `Tuition due now. ~$${credit} tuition tax credit at filing.`,
+      effects: {
+        cash: -tuition,
+        credits: credit,
+        addFlags: [`courses_${courses}`, "paid_tuition", "tuition_cash"],
+      },
+    };
+  }
+  return {
+    id: `courses_${courses}_loan`,
+    label: `Student loan ($${tuition.toLocaleString()})`,
+    description: `Debt covers tuition. ~$${credit} credit at filing.`,
+    effects: {
+      debt: tuition,
+      credits: credit,
+      addFlags: [`courses_${courses}`, "paid_tuition", "student_loan"],
+    },
+  };
+}
+
+function allTuitionOptions(): ScenarioOption[] {
+  const options: ScenarioOption[] = [];
+  for (let courses = MIN_COURSES; courses <= MAX_COURSES; courses += 1) {
+    options.push(tuitionOption(courses, "cash"));
+    options.push(tuitionOption(courses, "loan"));
+  }
+  return options;
+}
+
 /**
- * Draft scenario copy — edit freely.
- * Target: 8–12 cards across May / September / January.
+ * Student year scenarios — edit freely.
+ * Summer: home, car, bank · Fall: uni, grocery, bank fund · Winter: emergency, gig, trap
  */
 export const SCENARIOS: Scenario[] = [
+  // ——— Summer ———
   {
-    id: "may-grocery-budget",
+    id: "may-home-rent",
     season: "may",
-    locationId: "grocery",
-    title: "Grocery run under pressure",
-    body: "Your fridge is empty and a friend invited you out. You have $90 for food this week. How do you play it?",
+    locationId: "home",
+    title: "Summer rent is due",
+    body: "Your landlord wants $800 for the month, plus utilities. Your first paycheque from the $12k job is already in your account — how do you cover living costs?",
     options: [
       {
-        id: "basics",
-        label: "Stick to basics",
-        description: "Rice, eggs, veggies. Boring, solvent.",
-        effects: { cash: -55, addFlags: ["budget_basics"] },
+        id: "full",
+        label: "Pay rent + utilities ($950)",
+        description: "Stay current. Smaller cash buffer.",
+        effects: { cash: -950, addFlags: ["rent_current"] },
       },
       {
-        id: "splurge",
-        label: "Splurge + takeout",
-        description: "Treat yourself now, thinner buffer later.",
-        effects: { cash: -90, addFlags: ["thin_buffer"] },
+        id: "rent_only",
+        label: "Pay rent only ($800)",
+        description: "Utilities slide. Late fee later.",
+        effects: {
+          cash: -800,
+          debt: 180,
+          addFlags: ["utilities_deferred"],
+        },
       },
       {
-        id: "skip",
-        label: "Skip groceries, go out",
-        description: "Fun tonight. Hangry tomorrow.",
-        effects: { cash: -40, auditRisk: 0, addFlags: ["skipped_groceries"] },
+        id: "roommate",
+        label: "Split with a roommate ($520)",
+        description: "Cheaper, less privacy.",
+        effects: { cash: -520, addFlags: ["has_roommate"] },
       },
     ],
   },
   {
-    id: "may-car-insurance",
+    id: "may-car-upkeep",
     season: "may",
     locationId: "car",
-    title: "Insurance reminder",
-    body: "Your summer job needs reliable transport. Car insurance is due, and the quote stings.",
+    title: "Gas & maintenance",
+    body: "Summer commuting needs about $300 for gas and basic maintenance. Skipping it might bite you when winter hits.",
     options: [
       {
         id: "pay",
-        label: "Pay the premium",
-        description: "Cash down, risk down.",
-        effects: { cash: -180 },
+        label: "Pay $300 now",
+        description: "Car stays reliable.",
+        effects: { cash: -300, addFlags: ["car_maintained"] },
       },
       {
         id: "defer",
-        label: "Defer a month",
-        description: "Keep cash now; late fee later.",
-        effects: { cash: -40, debt: 160, addFlags: ["deferred_insurance"] },
+        label: "Defer maintenance ($120 gas only)",
+        description: "Save cash now. Winter repairs cost more.",
+        effects: {
+          cash: -120,
+          addFlags: ["deferred_car_maintenance"],
+        },
+      },
+      {
+        id: "transit",
+        label: "Sell the car, use transit",
+        description: "Big cash in, no car costs — less flexible.",
+        effects: {
+          cash: 1800,
+          addFlags: ["no_car", "transit_only"],
+        },
       },
     ],
   },
   {
-    id: "may-home-roommate",
+    id: "may-bank-setup",
     season: "may",
-    locationId: "home",
-    title: "Roommate utilities",
-    body: "Your roommate offers to put the hydro bill in your name for a 'small discount' if you handle cash under the table.",
-    options: [
-      {
-        id: "official",
-        label: "Split officially",
-        description: "Paper trail. Peace of mind.",
-        effects: { cash: -70 },
-      },
-      {
-        id: "under_table",
-        label: "Take the cash deal",
-        description: "Save a bit. Raise audit vibes.",
-        effects: { cash: -40, auditRisk: 8, addFlags: ["shady_utilities"] },
-      },
-    ],
-  },
-  {
-    id: "sept-uni-tuition",
-    season: "september",
-    locationId: "university",
-    title: "Tuition hits",
-    body: "Fall tuition is due. Paying it unlocks education tax credits when you file.",
-    options: [
-      {
-        id: "pay_tuition",
-        label: "Pay tuition",
-        description: "Big cash hit, future credit.",
-        effects: {
-          cash: -3200,
-          credits: 480,
-          addFlags: ["paid_tuition"],
-        },
-      },
-      {
-        id: "defer_term",
-        label: "Defer a course",
-        description: "Lower bill now, slower progress.",
-        effects: { cash: -1600, credits: 240, addFlags: ["partial_tuition"] },
-      },
-    ],
-  },
-  {
-    id: "sept-uni-loan",
-    season: "september",
-    locationId: "university",
-    title: "Student loan top-up",
-    body: "OSAP-style funding can cover books — but it's debt with interest later.",
-    options: [
-      {
-        id: "take_loan",
-        label: "Take the loan",
-        description: "Cash now, debt up.",
-        effects: { cash: 2500, debt: 2500, addFlags: ["student_loan"] },
-      },
-      {
-        id: "work_more",
-        label: "Work more instead",
-        description: "Employment income + withholdings.",
-        effects: {
-          cash: 900,
-          employmentIncome: 1200,
-          withholdings: 180,
-          addFlags: ["worked_extra"],
-        },
-      },
-    ],
-  },
-  {
-    id: "sept-bank-save",
-    season: "september",
     locationId: "bank",
-    title: "Open a savings pocket",
-    body: "The teller pitches a high-interest savings account for your leftover loan money.",
+    title: "Open your money toolkit",
+    body: "The teller walks you through starter products. Pick one move for Summer — you can fund registered accounts later in Fall.",
     options: [
       {
-        id: "save",
-        label: "Park $800 in savings",
-        description: "Less liquid cash, tiny growth stub.",
+        id: "open_hisa",
+        label: "Open a high-interest savings account",
+        description: "Liquid emergency cash. Move $400 in.",
+        effects: {
+          cash: -400,
+          investments: 400,
+          investmentIncome: 8,
+          addFlags: ["has_hisa"],
+        },
+      },
+      {
+        id: "open_tfsa",
+        label: "Open a TFSA",
+        description: "Tax-free growth room. Seed with $400.",
+        effects: {
+          cash: -400,
+          investments: 400,
+          addFlags: ["has_tfsa"],
+        },
+      },
+      {
+        id: "open_rrsp",
+        label: "Open an RRSP",
+        description: "Future deduction when you contribute. Seed $400.",
+        effects: {
+          cash: -400,
+          investments: 400,
+          addFlags: ["has_rrsp"],
+        },
+      },
+      {
+        id: "open_fhsa",
+        label: "Open an FHSA",
+        description: "First-home savings — deductible contributions. Seed $400.",
+        effects: {
+          cash: -400,
+          investments: 400,
+          addFlags: ["has_fhsa"],
+        },
+      },
+      {
+        id: "personal_loan",
+        label: "Take a $1,500 personal loan",
+        description: "Cash now, debt + interest later.",
+        effects: {
+          cash: 1500,
+          debt: 1650,
+          addFlags: ["personal_loan"],
+        },
+      },
+      {
+        id: "gic",
+        label: "Lock $800 in a 1-year GIC",
+        description: "Higher return stub, but cash is stuck until Winter.",
         effects: {
           cash: -800,
           investments: 800,
-          investmentIncome: 12,
-          addFlags: ["has_savings"],
+          investmentIncome: 35,
+          addFlags: ["locked_gic"],
+        },
+      },
+    ],
+  },
+
+  // ——— Fall ———
+  {
+    id: "sept-uni-courses",
+    season: "september",
+    locationId: "university",
+    title: "Register for Fall courses",
+    body: "Tuition is $600 per course. Choose how many classes to take (3–6), then pay with cash or a student loan. More courses mean a bigger bill — and a bigger tuition tax credit in Spring.",
+    options: allTuitionOptions(),
+  },
+  {
+    id: "sept-grocery",
+    season: "september",
+    locationId: "grocery",
+    title: "Grocery run after tuition",
+    body: "Your fridge is empty and meal plan FOMO is real. Stretch the budget after paying school costs.",
+    options: [
+      {
+        id: "basics",
+        label: "Basics only ($70)",
+        description: "Rice, eggs, veggies. Buffer intact.",
+        effects: { cash: -70, addFlags: ["budget_basics"] },
+      },
+      {
+        id: "normal",
+        label: "Normal cart ($120)",
+        description: "Comfortable week of food.",
+        effects: { cash: -120, addFlags: ["grocery_normal"] },
+      },
+      {
+        id: "splurge",
+        label: "Splurge + takeout ($190)",
+        description: "Tasty now, thinner buffer for Winter.",
+        effects: { cash: -190, addFlags: ["thin_buffer"] },
+      },
+    ],
+  },
+  {
+    id: "sept-bank-fund",
+    season: "september",
+    locationId: "bank",
+    title: "Fund an account",
+    body: "Fall is contribution season. Put $500 into a plan — RRSP and FHSA can lower taxable income in Spring. TFSA grows tax-free. HISA stays liquid. Or keep the cash.",
+    options: [
+      {
+        id: "fund_rrsp",
+        label: "Contribute $500 to an RRSP",
+        description: "Cash goes into RRSP · deduction +$500 at filing.",
+        effects: {
+          cash: -500,
+          investments: 500,
+          deductions: 500,
+          addFlags: ["has_rrsp", "funded_rrsp"],
         },
       },
       {
-        id: "hold_cash",
-        label: "Keep it liquid",
-        description: "Ready for emergencies.",
-        effects: { addFlags: ["kept_liquid"] },
+        id: "fund_fhsa",
+        label: "Contribute $500 to an FHSA",
+        description: "First-home room · deduction +$500 at filing.",
+        effects: {
+          cash: -500,
+          investments: 500,
+          deductions: 500,
+          addFlags: ["has_fhsa", "funded_fhsa"],
+        },
+      },
+      {
+        id: "fund_tfsa",
+        label: "Contribute $500 to a TFSA",
+        description: "Tax-free growth. No immediate deduction.",
+        effects: {
+          cash: -500,
+          investments: 500,
+          addFlags: ["has_tfsa", "funded_tfsa"],
+        },
+      },
+      {
+        id: "fund_hisa",
+        label: "Park $500 in high-interest savings",
+        description: "Liquid buffer. Small interest stub.",
+        effects: {
+          cash: -500,
+          investments: 500,
+          investmentIncome: 10,
+          addFlags: ["has_hisa", "funded_hisa"],
+        },
+      },
+      {
+        id: "skip_fund",
+        label: "Keep $500 as cash",
+        description: "Maximum liquidity for Winter surprises.",
+        effects: { addFlags: ["kept_cash_fall"] },
+      },
+    ],
+  },
+
+  // ——— Winter ———
+  {
+    id: "jan-car-emergency",
+    season: "january",
+    locationId: "car",
+    title: "Winter car trouble",
+    body: "A dead battery and winter tires — or a surprise transit pass if you sold the car. Cash-tight players feel this one.",
+    options: [
+      {
+        id: "fix_full",
+        label: "Fix it properly ($650)",
+        description: "Painful now, reliable through Spring.",
+        effects: { cash: -650, addFlags: ["winter_car_fixed"] },
+      },
+      {
+        id: "band_aid",
+        label: "Cheap battery only ($280)",
+        description: "Gets you to Spring. No tires.",
+        effects: { cash: -280, addFlags: ["winter_bandaid"] },
+      },
+      {
+        id: "borrow",
+        label: "Put $650 on a credit card",
+        description: "Cash safe, debt up.",
+        effects: { debt: 650, addFlags: ["winter_card_debt"] },
+      },
+      {
+        id: "transit_pass",
+        label: "Skip car — monthly transit ($95)",
+        description: "Works if you're already transit-only.",
+        effects: { cash: -95, addFlags: ["winter_transit"] },
       },
     ],
   },
@@ -180,13 +344,13 @@ export const SCENARIOS: Scenario[] = [
     id: "jan-side-gig",
     season: "january",
     locationId: "grocery",
-    title: "Weekend coffee gig",
-    body: "You earned $600 in tips and wages from a cash-heavy side gig. How do you handle it?",
+    title: "Holiday side gig",
+    body: "You earned $600 in wages and tips over the break. How much hits the tax return?",
     options: [
       {
-        id: "report",
-        label: "Report it all",
-        description: "Income up, audit risk stays clean.",
+        id: "report_all",
+        label: "Report all $600",
+        description: "Clean record. Income counted in Spring.",
         effects: {
           cash: 600,
           reportedSideIncome: 600,
@@ -194,9 +358,9 @@ export const SCENARIOS: Scenario[] = [
         },
       },
       {
-        id: "partial",
-        label: "Report wages only",
-        description: "Hide $250 tips under the mattress.",
+        id: "hide_tips",
+        label: "Report wages only ($350)",
+        description: "Hide $250 tips. Audit risk up.",
         effects: {
           cash: 600,
           reportedSideIncome: 350,
@@ -206,9 +370,9 @@ export const SCENARIOS: Scenario[] = [
         },
       },
       {
-        id: "hide",
+        id: "hide_all",
         label: "Report nothing",
-        description: "Maximum cash now. Maximum risk.",
+        description: "Maximum risk. Mattress cash.",
         effects: {
           cash: 600,
           unreportedSideIncome: 600,
@@ -219,42 +383,16 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
   {
-    id: "jan-bank-gic",
-    season: "january",
-    locationId: "bank",
-    title: "Locked GIC tease",
-    body: "A 1-year GIC pays more than your savings account — but you can't touch it if rent goes sideways.",
-    options: [
-      {
-        id: "lock",
-        label: "Lock $500",
-        description: "Higher return, lower liquidity.",
-        effects: {
-          cash: -500,
-          investments: 500,
-          investmentIncome: 25,
-          addFlags: ["locked_gic"],
-        },
-      },
-      {
-        id: "skip_gic",
-        label: "Stay flexible",
-        description: "Keep cash available.",
-        effects: { addFlags: ["skipped_gic"] },
-      },
-    ],
-  },
-  {
     id: "jan-fake-deduction",
     season: "january",
     locationId: "home",
     title: "A 'clever' deduction tip",
-    body: "A classmate swears you can deduct your gaming PC as a 'business expense' even though you only stream for fun.",
+    body: "A classmate swears you can write off a gaming PC as a 'school business expense' even though you only stream for fun.",
     options: [
       {
         id: "claim",
-        label: "Claim it anyway",
-        description: "Looks like a deduction. Smells like trouble.",
+        label: "Claim $900 anyway",
+        description: "Looks like a deduction. Smells like an audit.",
         effects: {
           deductions: 900,
           auditRisk: 22,
@@ -263,40 +401,9 @@ export const SCENARIOS: Scenario[] = [
       },
       {
         id: "pass",
-        label: "Leave it",
-        description: "Only claim what you can explain.",
+        label: "Only claim what you can explain",
+        description: "No fake write-off. Cleaner Spring.",
         effects: { addFlags: ["honest_deductions"] },
-      },
-    ],
-  },
-  {
-    id: "jan-withholding",
-    season: "january",
-    locationId: "home",
-    title: "Winter job pay stub",
-    body: "Your campus job paid a holiday bonus. Tax was withheld at source — annoying now, helpful in April.",
-    options: [
-      {
-        id: "accept",
-        label: "Take the stub as-is",
-        description: "Employment income + withholdings recorded.",
-        effects: {
-          cash: 1100,
-          employmentIncome: 1500,
-          withholdings: 280,
-          addFlags: ["winter_job"],
-        },
-      },
-      {
-        id: "cash_side",
-        label: "Ask to be paid cash off-books",
-        description: "More take-home. Worse paper trail.",
-        effects: {
-          cash: 1400,
-          unreportedSideIncome: 1400,
-          auditRisk: 28,
-          addFlags: ["off_books_bonus"],
-        },
       },
     ],
   },

@@ -7,12 +7,14 @@ import { PlayerSprite } from "./PlayerSprite";
 
 type TownMapProps = {
   unlockedLocationIds: string[];
+  /** Locations that still have an activity this season. */
+  activeLocationIds: string[];
   onSelectLocation: (locationId: string) => void;
   debugHotspots?: boolean;
 };
 
 /** How much larger the world is than the viewport (higher = more zoomed in). */
-const WORLD_ZOOM = 2.75;
+const WORLD_ZOOM = 2.00;
 /** Movement speed as fraction of world size per second. */
 const MOVE_SPEED = 0.22;
 /** Walk animation frames per second while moving. */
@@ -36,6 +38,7 @@ function clamp(value: number, min: number, max: number): number {
 
 export function TownMap({
   unlockedLocationIds,
+  activeLocationIds,
   onSelectLocation,
   debugHotspots = false,
 }: TownMapProps) {
@@ -47,7 +50,7 @@ export function TownMap({
   const animAccumRef = useRef(0);
   const worldSizeRef = useRef(0);
   const viewSizeRef = useRef({ w: 0, h: 0 });
-  const unlockedRef = useRef(new Set<string>());
+  const activeRef = useRef(new Set<string>());
   const nearbyRef = useRef<string | null>(null);
   const onSelectRef = useRef(onSelectLocation);
   const rafRef = useRef<number | null>(null);
@@ -70,10 +73,14 @@ export function TownMap({
     () => new Set(unlockedLocationIds),
     [unlockedLocationIds],
   );
+  const active = useMemo(
+    () => new Set(activeLocationIds),
+    [activeLocationIds],
+  );
 
   useEffect(() => {
-    unlockedRef.current = unlocked;
-  }, [unlocked]);
+    activeRef.current = active;
+  }, [active]);
 
   useEffect(() => {
     onSelectRef.current = onSelectLocation;
@@ -149,7 +156,7 @@ export function TownMap({
   useEffect(() => {
     const findNearby = (px: number, py: number, worldSize: number) => {
       for (const spot of HOTSPOTS) {
-        if (!unlockedRef.current.has(spot.id)) continue;
+        if (!activeRef.current.has(spot.id)) continue;
         const cx = ((spot.x + spot.w / 2) / 100) * worldSize;
         const cy = ((spot.y + spot.h / 2) / 100) * worldSize;
         const rx = ((spot.w / 100) * worldSize * INTERACT_PADDING) / 2;
@@ -349,15 +356,22 @@ export function TownMap({
           />
 
           {HOTSPOTS.map((spot) => {
-            const isOpen = unlocked.has(spot.id);
+            const isUnlocked = unlocked.has(spot.id);
+            const isActive = active.has(spot.id);
             const isNearby = view.nearbyId === spot.id;
             return (
               <button
                 key={spot.id}
                 type="button"
-                disabled={!isOpen}
+                disabled={!isActive}
                 onClick={() => onSelectLocation(spot.id)}
-                title={spot.label}
+                title={
+                  isActive
+                    ? spot.label
+                    : isUnlocked
+                      ? `${spot.label} (done)`
+                      : spot.label
+                }
                 className={`absolute rounded-lg border-2 transition ${
                   debugHotspots
                     ? "border-fuchsia-400 bg-fuchsia-400/30"
@@ -365,7 +379,7 @@ export function TownMap({
                       ? "border-tm-gold bg-tm-gold/25"
                       : "border-transparent"
                 } ${
-                  isOpen
+                  isActive
                     ? "cursor-pointer hover:border-tm-gold/80 hover:bg-tm-gold/15"
                     : "cursor-not-allowed opacity-70"
                 }`}
@@ -377,7 +391,7 @@ export function TownMap({
                 }}
               >
                 <span className="sr-only">{spot.label}</span>
-                {isOpen ? (
+                {isActive ? (
                   <span
                     className={`pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-[110%] whitespace-nowrap rounded-xl border-[3px] px-3 py-1.5 font-[family-name:var(--font-game)] text-sm font-extrabold shadow-[0_8px_20px_rgba(0,0,0,0.55)] md:text-base ${
                       isNearby
@@ -389,7 +403,7 @@ export function TownMap({
                   </span>
                 ) : (
                   <span className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-[110%] whitespace-nowrap rounded-xl border-2 border-white/30 bg-black/55 px-2.5 py-1 font-[family-name:var(--font-game)] text-xs font-bold text-white/80 shadow-md">
-                    {spot.label}
+                    {isUnlocked ? `${spot.label} · Done` : spot.label}
                   </span>
                 )}
               </button>
@@ -406,13 +420,12 @@ export function TownMap({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-xl border-2 border-tm-green-300/40 bg-tm-panel/95 px-3 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-lg backdrop-blur-sm">
+      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-full border-2 border-tm-green-300/70 bg-black/75 px-4 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
         <span className="text-tm-gold">WASD</span> walk
+        {" · "}
+        <span className="text-tm-gold">E</span> select
         {nearbySpot ? (
-          <>
-            {" · "}
-            <span className="text-tm-gold">E</span> enter {nearbySpot.label}
-          </>
+          <span className="text-tm-cream/80"> · {nearbySpot.label}</span>
         ) : null}
       </div>
     </div>

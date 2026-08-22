@@ -4,10 +4,12 @@ import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { DecisionModal } from "../../components/game/DecisionModal";
 import { Hud } from "../../components/game/Hud";
 import { TownMap } from "../../components/game/TownMap";
 import { api } from "../../convex/_generated/api";
 import { scenariosForSeason } from "../../convex/content/scenarios";
+import { seasonActivitiesComplete } from "../../convex/lib/seasons";
 import {
   clearPlaythroughId,
   useIsClient,
@@ -21,6 +23,7 @@ export default function PlayPage() {
   const playthroughId = usePlaythroughId();
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
+  const [choiceBusy, setChoiceBusy] = useState(false);
   const create = useMutation(api.playthroughs.create);
   const applyChoice = useMutation(api.playthroughs.applyChoice);
   const advanceSeason = useMutation(api.playthroughs.advanceSeason);
@@ -41,6 +44,27 @@ export default function PlayPage() {
     );
   }, [playthrough]);
 
+  const activeLocationIds = useMemo(() => {
+    if (!playthrough) return [];
+    const fromScenarios = openScenarios.map((scenario) => scenario.locationId);
+    if (
+      playthrough.season === "april" &&
+      playthrough.status === "playing" &&
+      playthrough.unlockedLocationIds.includes("taxOffice")
+    ) {
+      return [...fromScenarios, "taxOffice"];
+    }
+    return fromScenarios;
+  }, [openScenarios, playthrough]);
+
+  const canAdvanceSeason = useMemo(() => {
+    if (!playthrough) return false;
+    return seasonActivitiesComplete(
+      playthrough.season,
+      playthrough.completedScenarioIds,
+    );
+  }, [playthrough]);
+
   const scenarioForLocation = useMemo(() => {
     if (!selectedLocation) return null;
     return (
@@ -51,12 +75,17 @@ export default function PlayPage() {
 
   async function onChoose(optionId: string) {
     if (!playthroughId || !scenarioForLocation) return;
-    await applyChoice({
-      playthroughId,
-      scenarioId: scenarioForLocation.id,
-      optionId,
-    });
-    setSelectedLocation(null);
+    setChoiceBusy(true);
+    try {
+      await applyChoice({
+        playthroughId,
+        scenarioId: scenarioForLocation.id,
+        optionId,
+      });
+      setSelectedLocation(null);
+    } finally {
+      setChoiceBusy(false);
+    }
   }
 
   async function onTaxOffice() {
@@ -227,6 +256,7 @@ export default function PlayPage() {
       <div className="relative min-h-0 flex-1">
         <TownMap
           unlockedLocationIds={playthrough.unlockedLocationIds}
+          activeLocationIds={activeLocationIds}
           onSelectLocation={(locationId) => {
             if (locationId === "taxOffice" && playthrough.season === "april") {
               void onTaxOffice();
@@ -238,48 +268,45 @@ export default function PlayPage() {
         <Hud
           season={playthrough.season}
           cash={playthrough.cash}
-          investments={playthrough.investments}
+          debt={playthrough.debt}
           deductions={playthrough.deductions}
           credits={playthrough.credits}
+          canAdvanceSeason={canAdvanceSeason}
           onAdvanceSeason={() => void onAdvanceSeason()}
           advancing={advancing}
         />
       </div>
 
       {scenarioForLocation ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border-4 border-tm-green-300 bg-tm-panel p-6 shadow-2xl">
-            <p className="text-xs font-bold uppercase tracking-widest text-tm-green-300">
-              {scenarioForLocation.locationId}
-            </p>
-            <h2 className="mt-2 font-[family-name:var(--font-game)] text-2xl font-extrabold text-tm-cream">
-              {scenarioForLocation.title}
-            </h2>
-            <p className="mt-3 text-tm-cream/85">{scenarioForLocation.body}</p>
-            <div className="mt-6 space-y-3">
-              {scenarioForLocation.options.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => void onChoose(option.id)}
-                  className="w-full rounded-xl border-2 border-tm-green-300/50 bg-tm-green-900/80 px-4 py-3 text-left transition hover:border-tm-gold"
-                >
-                  <div className="font-[family-name:var(--font-game)] font-bold text-tm-cream">
-                    {option.label}
-                  </div>
-                  <div className="text-sm text-tm-cream/70">
-                    {option.description}
-                  </div>
-                </button>
-              ))}
-            </div>
+        <DecisionModal
+          scenario={scenarioForLocation}
+          busy={choiceBusy}
+          onChoose={(optionId) => void onChoose(optionId)}
+          onClose={() => setSelectedLocation(null)}
+        />
+      ) : selectedLocation ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+          onClick={() => setSelectedLocation(null)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-md rounded-2xl border-2 border-tm-green-300/50 bg-tm-green-900/75 p-6 pt-12 text-center shadow-2xl backdrop-blur-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
-              className="mt-4 text-sm text-tm-cream/60 underline"
+              aria-label="Close"
               onClick={() => setSelectedLocation(null)}
+              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border-2 border-tm-cream/25 bg-black/40 font-[family-name:var(--font-game)] text-lg font-extrabold text-tm-cream transition hover:border-tm-gold hover:text-tm-gold"
             >
-              Cancel
+              ×
             </button>
+            <p className="font-[family-name:var(--font-game)] text-lg font-bold text-tm-cream">
+              Nothing left to do here this season.
+            </p>
           </div>
         </div>
       ) : null}

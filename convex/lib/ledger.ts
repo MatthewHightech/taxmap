@@ -29,7 +29,9 @@ export type LedgerFields = {
   flags: string[];
 };
 
-export function netWorth(ledger: Pick<LedgerFields, "cash" | "investments" | "debt">): number {
+export function netWorth(
+  ledger: Pick<LedgerFields, "cash" | "investments" | "debt">,
+): number {
   return ledger.cash + ledger.investments - ledger.debt;
 }
 
@@ -63,20 +65,50 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Placeholder student starting economy — tune later. */
+/**
+ * Student start: $12k/yr job with Summer quarter already paid into cash.
+ * Gross YTD $3,000 with simplified withholdings.
+ */
 export function initialStudentLedger(): LedgerFields {
   return {
-    cash: 2200,
+    cash: 2200 + 2550,
     investments: 0,
-    debt: 8500,
-    employmentIncome: 0,
+    debt: 0,
+    employmentIncome: 3000,
     reportedSideIncome: 0,
     unreportedSideIncome: 0,
     investmentIncome: 0,
-    withholdings: 0,
+    withholdings: 450,
     deductions: 0,
     credits: 0,
     auditRisk: 0,
-    flags: [],
+    flags: ["salary_12k"],
   };
+}
+
+export function formatEffectChips(effect: Effect): string[] {
+  const chips: string[] = [];
+  const money = (
+    key: keyof Effect,
+    label: string,
+  ) => {
+    const value = effect[key];
+    if (typeof value === "number" && value !== 0) {
+      const sign = value > 0 ? "+" : "";
+      chips.push(`${label} ${sign}$${Math.abs(value).toLocaleString()}`);
+    }
+  };
+  money("cash", "Cash");
+  money("debt", "Debt");
+  money("employmentIncome", "Employment income");
+  money("reportedSideIncome", "Reported gig");
+  money("unreportedSideIncome", "Unreported");
+  money("withholdings", "Withheld");
+  money("deductions", "Deductions");
+  money("credits", "Credits");
+  if (effect.auditRisk) {
+    const sign = effect.auditRisk > 0 ? "+" : "";
+    chips.push(`Audit ${sign}${effect.auditRisk}%`);
+  }
+  return chips;
 }

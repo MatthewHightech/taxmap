@@ -2,12 +2,20 @@ import { v } from "convex/values";
 import { getScenario } from "./content/scenarios";
 import { mutation, query } from "./_generated/server";
 import { rollAudit } from "./lib/audit";
-import { applyEffect, initialStudentLedger, netWorth } from "./lib/ledger";
+import {
+  applyEffect,
+  initialStudentLedger,
+  netWorth,
+  type LedgerFields,
+} from "./lib/ledger";
 import { computeScore } from "./lib/scoring";
 import {
   nextSeason,
+  QUARTERLY_GROSS_PAY,
+  QUARTERLY_NET_PAY,
+  QUARTERLY_WITHHOLDING,
   SEASON_LOCATIONS,
-  SEASON_REQUIRED_SCENARIOS,
+  seasonActivitiesComplete,
   type Season,
 } from "./lib/seasons";
 import { computeFederalReturn } from "./lib/taxFederal";
@@ -48,6 +56,15 @@ const playthroughPublicValidator = v.object({
   netWorth: v.number(),
 });
 
+function grantQuarterlyPay(ledger: LedgerFields): LedgerFields {
+  return {
+    ...ledger,
+    cash: ledger.cash + QUARTERLY_NET_PAY,
+    employmentIncome: ledger.employmentIncome + QUARTERLY_GROSS_PAY,
+    withholdings: ledger.withholdings + QUARTERLY_WITHHOLDING,
+  };
+}
+
 export const create = mutation({
   args: {
     playerName: v.optional(v.string()),
@@ -82,10 +99,7 @@ export const get = query({
     if (!doc) {
       return null;
     }
-    return {
-      ...doc,
-      netWorth: netWorth(doc),
-    };
+    return { ...doc, netWorth: netWorth(doc) };
   },
 });
 
@@ -124,35 +138,15 @@ export const applyChoice = mutation({
       throw new Error("Unknown option");
     }
 
-    const nextLedger = applyEffect(doc, option.effects);
+    let nextLedger: LedgerFields = applyEffect(doc, option.effects);
     const completedScenarioIds = [
       ...doc.completedScenarioIds,
       args.scenarioId,
     ];
 
-    let season = doc.season;
-    let unlockedLocationIds = doc.unlockedLocationIds;
-    const status = doc.status;
-
-    const required = SEASON_REQUIRED_SCENARIOS[season];
-    const completedThisSeason = completedScenarioIds.filter((id) =>
-      id.startsWith(seasonPrefix(season)),
-    ).length;
-
-    if (season !== "april" && completedThisSeason >= required) {
-      const upcoming = nextSeason(season);
-      if (upcoming) {
-        season = upcoming;
-        unlockedLocationIds = [...SEASON_LOCATIONS[upcoming]];
-      }
-    }
-
     await ctx.db.patch("playthroughs", args.playthroughId, {
       ...nextLedger,
       completedScenarioIds,
-      season,
-      unlockedLocationIds,
-      status,
       updatedAt: Date.now(),
     });
 
@@ -178,12 +172,19 @@ export const advanceSeason = mutation({
       throw new Error("Can only advance while playing");
     }
 
+    if (!seasonActivitiesComplete(doc.season, doc.completedScenarioIds)) {
+      throw new Error("Finish every activity this season before advancing");
+    }
+
     const upcoming = nextSeason(doc.season);
     if (!upcoming) {
       throw new Error("Already at Tax Day");
     }
 
+    const paid = grantQuarterlyPay(doc);
+
     await ctx.db.patch("playthroughs", args.playthroughId, {
+      ...paid,
       season: upcoming,
       unlockedLocationIds: [...SEASON_LOCATIONS[upcoming]],
       updatedAt: Date.now(),
@@ -208,7 +209,7 @@ export const startFiling = mutation({
       throw new Error("Playthrough not found");
     }
     if (doc.season !== "april") {
-      throw new Error("Tax Office opens in April");
+      throw new Error("Tax Office opens in Spring");
     }
 
     await ctx.db.patch("playthroughs", args.playthroughId, {
@@ -235,7 +236,7 @@ export const submitReturn = mutation({
       throw new Error("Playthrough not found");
     }
     if (doc.season !== "april") {
-      throw new Error("Can only file in April");
+      throw new Error("Can only file in Spring");
     }
 
     const tax = computeFederalReturn(doc);
@@ -301,7 +302,7 @@ export const submitReturn = mutation({
   },
 });
 
-/** Judge-demo seed: jump to April with a spicy ledger. */
+/** Judge-demo seed: Spring with a messy student ledger. */
 export const seedDemo = mutation({
   args: {},
   returns: v.id("playthroughs"),
@@ -313,51 +314,39 @@ export const seedDemo = mutation({
       season: "april",
       status: "playing",
       completedScenarioIds: [
-        "may-grocery-budget",
-        "may-car-insurance",
-        "sept-uni-tuition",
-        "sept-uni-loan",
-        "sept-bank-save",
+        "may-home-rent",
+        "may-car-upkeep",
+        "may-bank-setup",
+        "sept-uni-courses",
+        "sept-grocery",
+        "sept-bank-fund",
+        "jan-car-emergency",
         "jan-side-gig",
-        "jan-bank-gic",
         "jan-fake-deduction",
-        "jan-withholding",
       ],
       unlockedLocationIds: [...SEASON_LOCATIONS.april],
       persona: "student",
       playerName: "Demo Student",
-      cash: 1840,
-      investments: 1300,
-      debt: 11000,
-      employmentIncome: 2700,
+      cash: 2100,
+      investments: 1400,
+      debt: 2400,
+      employmentIncome: 12000,
       reportedSideIncome: 350,
       unreportedSideIncome: 250,
-      investmentIncome: 37,
-      withholdings: 460,
-      deductions: 900,
-      credits: 480,
+      investmentIncome: 45,
+      withholdings: 4500,
+      deductions: 500,
+      credits: 360,
       auditRisk: 40,
       flags: [
+        "salary_12k",
+        "has_rrsp",
+        "funded_rrsp",
         "paid_tuition",
-        "student_loan",
-        "has_savings",
+        "courses_4",
         "hid_tips",
         "claimed_fake_deduction",
-        "winter_job",
       ],
     });
   },
 });
-
-function seasonPrefix(season: Season): string {
-  switch (season) {
-    case "may":
-      return "may-";
-    case "september":
-      return "sept-";
-    case "january":
-      return "jan-";
-    case "april":
-      return "april-";
-  }
-}
