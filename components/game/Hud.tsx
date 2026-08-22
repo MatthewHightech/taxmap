@@ -1,67 +1,93 @@
-type HudProps = {
-  seasonLabel: string;
+"use client";
+
+import type { Season } from "../../convex/lib/seasons";
+import { nextSeason, SEASON_LABELS } from "../../convex/lib/seasons";
+
+type GameHudProps = {
+  season: Season;
   cash: number;
-  netWorth: number;
+  investments: number;
   deductions: number;
   credits: number;
-  auditRisk: number;
+  onAdvanceSeason: () => void;
+  advancing?: boolean;
 };
 
-function Chip({
+function MoneyBubble({
   label,
   value,
-  warn,
+  accent,
 }: {
   label: string;
-  value: string;
-  warn?: boolean;
+  value: number;
+  accent?: "gold" | "green" | "cream";
 }) {
+  const accentClass =
+    accent === "gold"
+      ? "border-tm-gold/80 text-tm-gold"
+      : accent === "cream"
+        ? "border-tm-cream/50 text-tm-cream"
+        : "border-tm-green-300/70 text-tm-green-300";
+
   return (
     <div
-      className={`rounded-xl border-2 px-3 py-1.5 shadow-md ${
-        warn
-          ? "border-tm-danger bg-tm-danger/20"
-          : "border-tm-gold/70 bg-tm-panel"
-      }`}
+      className={`pointer-events-auto rounded-full border-2 bg-black/75 px-4 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md ${accentClass}`}
     >
-      <div className="text-[10px] font-bold uppercase tracking-wide text-tm-green-300">
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-tm-cream/80">
         {label}
       </div>
-      <div className="font-[family-name:var(--font-game)] text-sm font-extrabold text-tm-cream">
-        {value}
+      <div className="font-[family-name:var(--font-game)] text-base font-extrabold leading-tight text-tm-cream">
+        ${Math.round(value).toLocaleString()}
       </div>
     </div>
   );
 }
 
 export function Hud({
-  seasonLabel,
+  season,
   cash,
-  netWorth,
+  investments,
   deductions,
   credits,
-  auditRisk,
-}: HudProps) {
+  onAdvanceSeason,
+  advancing = false,
+}: GameHudProps) {
+  const canAdvance = nextSeason(season) !== null;
+  const upcoming = nextSeason(season);
+
   return (
-    <header className="z-20 flex flex-wrap items-center gap-3 border-b-4 border-tm-green-700 bg-tm-green-900/95 px-4 py-3">
-      <div className="mr-auto">
-        <div className="font-[family-name:var(--font-game)] text-xl font-extrabold tracking-tight text-tm-gold">
-          TaxMap
+    <div className="pointer-events-none absolute inset-0 z-30">
+      <div className="absolute left-4 top-4 flex max-w-[min(100%-2rem,28rem)] items-center gap-2">
+        <div className="pointer-events-auto rounded-2xl border-2 border-tm-gold/70 bg-black/75 px-4 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
+          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-tm-green-300">
+            Season
+          </div>
+          <div className="font-[family-name:var(--font-game)] text-lg font-extrabold leading-tight text-tm-cream md:text-xl">
+            {SEASON_LABELS[season]}
+          </div>
         </div>
-        <div className="text-xs font-semibold text-tm-green-300">{seasonLabel}</div>
+
+        {canAdvance ? (
+          <button
+            type="button"
+            disabled={advancing}
+            onClick={onAdvanceSeason}
+            className="pointer-events-auto rounded-full border-2 border-tm-gold bg-tm-gold px-4 py-2.5 font-[family-name:var(--font-game)] text-sm font-extrabold text-tm-ink shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition hover:brightness-105 disabled:opacity-60"
+            title={
+              upcoming ? `Jump to ${SEASON_LABELS[upcoming]}` : "Next season"
+            }
+          >
+            {advancing ? "…" : "Next →"}
+          </button>
+        ) : null}
       </div>
-      <Chip label="Cash" value={`$${Math.round(cash).toLocaleString()}`} />
-      <Chip
-        label="Net Worth"
-        value={`$${Math.round(netWorth).toLocaleString()}`}
-      />
-      <Chip label="Deductions" value={`$${Math.round(deductions).toLocaleString()}`} />
-      <Chip label="Credits" value={`$${Math.round(credits).toLocaleString()}`} />
-      <Chip
-        label="Audit Risk"
-        value={`${Math.round(auditRisk)}%`}
-        warn={auditRisk >= 25}
-      />
-    </header>
+
+      <div className="absolute right-4 top-4 flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        <MoneyBubble label="Cash" value={cash} accent="gold" />
+        <MoneyBubble label="Investments" value={investments} accent="green" />
+        <MoneyBubble label="Credits" value={credits} accent="cream" />
+        <MoneyBubble label="Deductions" value={deductions} accent="cream" />
+      </div>
+    </div>
   );
 }

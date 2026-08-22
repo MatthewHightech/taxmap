@@ -8,7 +8,6 @@ import { Hud } from "../../components/game/Hud";
 import { TownMap } from "../../components/game/TownMap";
 import { api } from "../../convex/_generated/api";
 import { scenariosForSeason } from "../../convex/content/scenarios";
-import { SEASON_LABELS } from "../../convex/lib/seasons";
 import {
   clearPlaythroughId,
   useIsClient,
@@ -21,8 +20,10 @@ export default function PlayPage() {
   const isClient = useIsClient();
   const playthroughId = usePlaythroughId();
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const [advancing, setAdvancing] = useState(false);
   const create = useMutation(api.playthroughs.create);
   const applyChoice = useMutation(api.playthroughs.applyChoice);
+  const advanceSeason = useMutation(api.playthroughs.advanceSeason);
   const startFiling = useMutation(api.playthroughs.startFiling);
   const submitReturn = useMutation(api.playthroughs.submitReturn);
 
@@ -75,6 +76,17 @@ export default function PlayPage() {
     const id = await create({});
     writePlaythroughId(id);
     router.replace("/play");
+  }
+
+  async function onAdvanceSeason() {
+    if (!playthroughId) return;
+    setAdvancing(true);
+    try {
+      await advanceSeason({ playthroughId });
+      setSelectedLocation(null);
+    } finally {
+      setAdvancing(false);
+    }
   }
 
   // During SSR/hydration, always render the same loading shell to avoid mismatches
@@ -212,14 +224,6 @@ export default function PlayPage() {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <Hud
-        seasonLabel={SEASON_LABELS[playthrough.season]}
-        cash={playthrough.cash}
-        netWorth={playthrough.netWorth}
-        deductions={playthrough.deductions}
-        credits={playthrough.credits}
-        auditRisk={playthrough.auditRisk}
-      />
       <div className="relative min-h-0 flex-1">
         <TownMap
           unlockedLocationIds={playthrough.unlockedLocationIds}
@@ -230,6 +234,15 @@ export default function PlayPage() {
             }
             setSelectedLocation(locationId);
           }}
+        />
+        <Hud
+          season={playthrough.season}
+          cash={playthrough.cash}
+          investments={playthrough.investments}
+          deductions={playthrough.deductions}
+          credits={playthrough.credits}
+          onAdvanceSeason={() => void onAdvanceSeason()}
+          advancing={advancing}
         />
       </div>
 

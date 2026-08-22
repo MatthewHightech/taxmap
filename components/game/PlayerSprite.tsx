@@ -38,7 +38,7 @@ export function PlayerSprite({ x, y, frame, facing, size }: PlayerSpriteProps) {
       <div
         className="h-full w-full"
         style={{
-          backgroundImage: "url(/assets/sprite_sheet.png)",
+          backgroundImage: "url(/assets/sprite_sheet2.png)",
           backgroundRepeat: "no-repeat",
           backgroundSize: `${COLS * 100}% ${ROWS * 100}%`,
           backgroundPosition: `${(col / (COLS - 1)) * 100}% ${(row / (ROWS - 1)) * 100}%`,

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HOTSPOTS } from "../../content/hotspots";
+import { TOWN_IMAGE_SRC } from "../../content/mapAssets";
 import { PlayerSprite } from "./PlayerSprite";
 
 type TownMapProps = {
@@ -341,7 +342,7 @@ export function TownMap({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/assets/town.png"
+            src={TOWN_IMAGE_SRC}
             alt=""
             draggable={false}
             className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
@@ -365,8 +366,8 @@ export function TownMap({
                       : "border-transparent"
                 } ${
                   isOpen
-                    ? "cursor-pointer hover:border-tm-gold hover:bg-tm-gold/20"
-                    : "cursor-not-allowed opacity-35"
+                    ? "cursor-pointer hover:border-tm-gold/80 hover:bg-tm-gold/15"
+                    : "cursor-not-allowed opacity-70"
                 }`}
                 style={{
                   left: `${spot.x}%`,
@@ -378,15 +379,19 @@ export function TownMap({
                 <span className="sr-only">{spot.label}</span>
                 {isOpen ? (
                   <span
-                    className={`absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-0.5 font-[family-name:var(--font-game)] text-[11px] font-bold shadow ${
+                    className={`pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-[110%] whitespace-nowrap rounded-xl border-[3px] px-3 py-1.5 font-[family-name:var(--font-game)] text-sm font-extrabold shadow-[0_8px_20px_rgba(0,0,0,0.55)] md:text-base ${
                       isNearby
-                        ? "bg-tm-gold text-tm-ink"
-                        : "bg-tm-panel text-tm-cream"
+                        ? "border-[#06281d] bg-tm-gold text-tm-ink"
+                        : "border-tm-gold bg-[#06281d] text-white"
                     }`}
                   >
                     {spot.label}
                   </span>
-                ) : null}
+                ) : (
+                  <span className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-[110%] whitespace-nowrap rounded-xl border-2 border-white/30 bg-black/55 px-2.5 py-1 font-[family-name:var(--font-game)] text-xs font-bold text-white/80 shadow-md">
+                    {spot.label}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -401,7 +406,7 @@ export function TownMap({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-xl border-2 border-tm-green-300/40 bg-tm-panel px-3 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-lg">
+      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-xl border-2 border-tm-green-300/40 bg-tm-panel/95 px-3 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-lg backdrop-blur-sm">
         <span className="text-tm-gold">WASD</span> walk
         {nearbySpot ? (
           <>

@@ -164,6 +164,39 @@ export const applyChoice = mutation({
   },
 });
 
+export const advanceSeason = mutation({
+  args: {
+    playthroughId: v.id("playthroughs"),
+  },
+  returns: playthroughPublicValidator,
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!doc) {
+      throw new Error("Playthrough not found");
+    }
+    if (doc.status !== "playing") {
+      throw new Error("Can only advance while playing");
+    }
+
+    const upcoming = nextSeason(doc.season);
+    if (!upcoming) {
+      throw new Error("Already at Tax Day");
+    }
+
+    await ctx.db.patch("playthroughs", args.playthroughId, {
+      season: upcoming,
+      unlockedLocationIds: [...SEASON_LOCATIONS[upcoming]],
+      updatedAt: Date.now(),
+    });
+
+    const updated = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!updated) {
+      throw new Error("Playthrough missing after update");
+    }
+    return { ...updated, netWorth: netWorth(updated) };
+  },
+});
+
 export const startFiling = mutation({
   args: {
     playthroughId: v.id("playthroughs"),
