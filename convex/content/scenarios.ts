@@ -37,7 +37,7 @@ export function tuitionOption(
     return {
       id: `courses_${courses}_cash`,
       label: `Pay cash ($${tuition.toLocaleString()})`,
-      description: `Tuition due now. $${tuition.toLocaleString()} tuition tax credit at filing.`,
+      description: `Tuition due now. $${tuition.toLocaleString()} eligible fees → federal credit at filing (~${Math.round(tuition * 0.145)}).`,
       effects: {
         cash: -tuition,
         credits: tuition,
@@ -48,7 +48,7 @@ export function tuitionOption(
   return {
     id: `courses_${courses}_loan`,
     label: `Student loan ($${tuition.toLocaleString()})`,
-    description: `Debt covers tuition. $${tuition.toLocaleString()} credit at filing.`,
+    description: `Debt covers tuition. $${tuition.toLocaleString()} eligible fees → federal credit at filing (~${Math.round(tuition * 0.145)}).`,
     effects: {
       debt: tuition,
       credits: tuition,
@@ -78,7 +78,7 @@ export const SCENARIOS: Scenario[] = [
     season: "may",
     locationId: "home",
     title: "Summer rent is due",
-    body: "Your landlord wants $800 for the month, plus utilities. Your first paycheque from the $12k job is already in your account — how do you cover living costs?",
+    body: "Your landlord wants $800 for the month, plus utilities. Your first paycheque from the $24k job is already in your account — how do you cover living costs?",
     options: [
       {
         id: "full",
@@ -111,7 +111,7 @@ export const SCENARIOS: Scenario[] = [
     season: "september",
     locationId: "university",
     title: "Register for Fall courses",
-    body: "Tuition is $600 per course. Choose how many classes to take (3–6), then pay with cash or a student loan. More courses mean a bigger bill — and a bigger tuition tax credit in Spring.",
+    body: "Tuition is $600 per course. Choose how many classes to take (3–6), then pay with cash or a student loan. More courses mean a bigger bill — and more eligible tuition fees for your federal tuition credit in Spring (credit ≈ fees × lowest rate).",
     options: allTuitionOptions(),
   },
   // ——— Winter ———

@@ -1,3 +1,9 @@
+import {
+  QUARTERLY_GROSS_PAY,
+  QUARTERLY_NET_PAY,
+  QUARTERLY_WITHHOLDING,
+} from "./seasons";
+
 export type Effect = {
   cash?: number;
   investments?: number;
@@ -66,23 +72,23 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * Student start: $12k/yr job with Summer quarter already paid into cash.
- * Gross YTD $3,000 with simplified withholdings.
+ * Student start: $24k/yr job with Summer quarter already paid into cash.
+ * Gross YTD one quarter with simplified withholdings.
  */
 export function initialStudentLedger(): LedgerFields {
   return {
-    cash: 2200 + 2550,
+    cash: 2200 + QUARTERLY_NET_PAY,
     investments: 0,
     debt: 0,
-    employmentIncome: 3000,
+    employmentIncome: QUARTERLY_GROSS_PAY,
     reportedSideIncome: 0,
     unreportedSideIncome: 0,
     investmentIncome: 0,
-    withholdings: 450,
+    withholdings: QUARTERLY_WITHHOLDING,
     deductions: 0,
     credits: 0,
     auditRisk: 0,
-    flags: ["salary_12k", "has_hisa", "has_tfsa", "has_rrsp", "has_fhsa"],
+    flags: ["salary_24k", "has_hisa", "has_tfsa", "has_rrsp", "has_fhsa"],
   };
 }
 

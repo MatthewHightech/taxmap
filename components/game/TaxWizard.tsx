@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { donationCreditBreakdown } from "../../convex/lib/donations";
 import {
-  donationCreditBreakdown,
-  effectiveTaxCredits,
-} from "../../convex/lib/donations";
-import { computeFederalReturn } from "../../convex/lib/taxFederal";
+  computeFederalReturn,
+  federalTuitionCredit,
+  LOWEST_FEDERAL_RATE,
+} from "../../convex/lib/taxFederal";
 
 export type YearLedger = {
   employmentIncome: number;
@@ -176,15 +177,19 @@ function LedgerPanel({ ledger }: { ledger: YearLedger }) {
           value={`$${ledger.deductions.toLocaleString()}`}
         />
         <LedgerRow
-          label="Tuition & other credits"
+          label="Eligible tuition fees"
           value={`$${ledger.credits.toLocaleString()}`}
+        />
+        <LedgerRow
+          label="Tuition credit (fed. est.)"
+          value={`$${federalTuitionCredit(ledger.credits).toLocaleString()}`}
         />
         <LedgerRow
           label="Charitable donations"
           value={`$${ledger.charitableDonations.toLocaleString()}`}
         />
         <LedgerRow
-          label="Donation credit (est.)"
+          label="Donation credit (fed. + ON est.)"
           value={`$${donationPreview.total.toLocaleString()}`}
         />
       </div>
@@ -208,13 +213,21 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const step = STEPS[stepIndex]!.id;
 
-  const [employment, setEmployment] = useState("");
-  const [sideIncome, setSideIncome] = useState("");
-  const [investment, setInvestment] = useState("");
-  const [deductions, setDeductions] = useState("");
-  const [credits, setCredits] = useState("");
-  const [donations, setDonations] = useState("");
-  const [withheld, setWithheld] = useState("");
+  const [employment, setEmployment] = useState(
+    String(ledger.employmentIncome),
+  );
+  const [sideIncome, setSideIncome] = useState(
+    String(ledger.reportedSideIncome),
+  );
+  const [investment, setInvestment] = useState(
+    String(ledger.investmentIncome),
+  );
+  const [deductions, setDeductions] = useState(String(ledger.deductions));
+  const [credits, setCredits] = useState(String(ledger.credits));
+  const [donations, setDonations] = useState(
+    String(ledger.charitableDonations),
+  );
+  const [withheld, setWithheld] = useState(String(ledger.withholdings));
 
   const filed: FiledReturn = useMemo(
     () => ({
@@ -244,14 +257,14 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
         reportedSideIncome: filed.reportedSideIncome,
         investmentIncome: filed.investmentIncome,
         deductions: filed.deductions,
-        credits: effectiveTaxCredits(
-          filed.credits,
-          filed.charitableDonations,
-        ),
+        tuitionAmount: filed.credits,
+        charitableDonations: filed.charitableDonations,
         withholdings: filed.withholdings,
       }),
     [filed],
   );
+
+  const tuitionCreditPreview = federalTuitionCredit(filed.credits);
 
   function goNext() {
     setStepIndex((index) => Math.min(STEPS.length - 1, index + 1));
@@ -330,7 +343,7 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
                   <ul className="list-disc space-y-1 pl-5 text-sm text-tm-cream/70">
                     <li>Income from work, gigs, and taxable investments</li>
                     <li>Deductions (RRSP / FHSA contributions)</li>
-                    <li>Credits (tuition) and charitable donations</li>
+                    <li>Eligible tuition fees and charitable donations</li>
                     <li>Tax already taken from your paycheques</li>
                   </ul>
                 </div>
@@ -399,14 +412,16 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
                     Step 3 · Credits & donations
                   </h2>
                   <p className="text-sm text-tm-cream/70">
-                    Enter tuition (and other) credits from the ledger, plus the
-                    cash you donated. Donation tax credit is calculated for you
+                    Enter your eligible tuition fees (the amount you paid), not
+                    the credit dollars. CRA multiplies tuition by the lowest
+                    federal rate ({(LOWEST_FEDERAL_RATE * 100).toFixed(1)}%).
+                    Enter cash donated; the federal donation credit is calculated
                     at file.
                   </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <MoneyField
-                      label="Tuition & other credits"
-                      hint="Copy from Tuition & other credits"
+                      label="Eligible tuition fees"
+                      hint="Copy from Eligible tuition fees"
                       value={credits}
                       onChange={setCredits}
                       disabled={busy}
@@ -419,9 +434,17 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
                       disabled={busy}
                     />
                   </div>
+                  {parseDollars(credits) > 0 ? (
+                    <p className="text-sm text-tm-green-300">
+                      Federal tuition credit on what you entered: $
+                      {tuitionCreditPreview.toLocaleString()} (
+                      {(LOWEST_FEDERAL_RATE * 100).toFixed(1)}% × fees)
+                    </p>
+                  ) : null}
                   {parseDollars(donations) > 0 ? (
                     <p className="text-sm text-tm-green-300">
-                      Estimated donation credit on what you entered: $
+                      Estimated donation credit (fed. + ON) on what you entered:
+                      $
                       {donationCreditBreakdown(
                         parseDollars(donations),
                       ).total.toLocaleString()}
@@ -480,7 +503,9 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
                         <li>
                           Deductions: ${filed.deductions.toLocaleString()}
                         </li>
-                        <li>Credits: ${filed.credits.toLocaleString()}</li>
+                        <li>
+                          Tuition fees: ${filed.credits.toLocaleString()}
+                        </li>
                         <li>
                           Donations: $
                           {filed.charitableDonations.toLocaleString()}
@@ -492,7 +517,7 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
                     </div>
                     <div className="rounded-xl border-2 border-tm-gold/50 bg-tm-gold/10 px-4 py-3">
                       <p className="text-[10px] font-bold uppercase tracking-wide text-tm-gold">
-                        Estimated result
+                        Estimated federal result
                       </p>
                       <p className="mt-2 font-[family-name:var(--font-game)] text-2xl font-extrabold text-tm-cream">
                         {preview.refund ? "Refund" : "Balance owing"}
@@ -506,7 +531,18 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
                           {preview.taxableIncome.toLocaleString()}
                         </li>
                         <li>
+                          Gross federal tax: $
+                          {preview.federalTax.toLocaleString()}
+                        </li>
+                        <li>
+                          Credits applied: ${preview.credits.toLocaleString()}
+                        </li>
+                        <li>
                           Net federal tax: ${preview.netTax.toLocaleString()}
+                        </li>
+                        <li>
+                          Already withheld: $
+                          {preview.withholdings.toLocaleString()}
                         </li>
                       </ul>
                     </div>

@@ -423,10 +423,8 @@ export const submitReturn = mutation({
       reportedSideIncome: filed.reportedSideIncome,
       investmentIncome: filed.investmentIncome,
       deductions: filed.deductions,
-      credits: effectiveTaxCredits(
-        filed.credits,
-        filed.charitableDonations,
-      ),
+      tuitionAmount: filed.credits,
+      charitableDonations: filed.charitableDonations,
       withholdings: filed.withholdings,
     });
     const { result: auditResult, penalty } = rollAudit(
@@ -534,17 +532,17 @@ export const seedDemo = mutation({
       tfsaBalance: 200,
       rrspBalance: 1000,
       fhsaBalance: 0,
-      employmentIncome: 12000,
+      employmentIncome: 24000,
       reportedSideIncome: 350,
       unreportedSideIncome: 250,
       investmentIncome: 45,
-      withholdings: 4500,
+      withholdings: 3600,
       deductions: 500,
       credits: 360,
       charitableDonations: 200,
       auditRisk: 40,
       flags: [
-        "salary_12k",
+        "salary_24k",
         "has_rrsp",
         "funded_rrsp",
         "paid_tuition",

@@ -33,10 +33,12 @@ export const SEASON_REQUIRED_SCENARIOS: Record<Season, number> = {
   april: 0,
 };
 
-/** Quarterly slice of the $12k student salary (gross). */
-export const QUARTERLY_GROSS_PAY = 3000;
-/** Simplified federal-ish withhold on quarterly pay. */
-export const QUARTERLY_WITHHOLDING = 450;
+/** Annual student salary (gross). */
+export const ANNUAL_STUDENT_SALARY = 24000;
+/** Quarterly slice of student salary (gross). */
+export const QUARTERLY_GROSS_PAY = ANNUAL_STUDENT_SALARY / 4;
+/** Simplified federal-ish withhold on quarterly pay (~15%). */
+export const QUARTERLY_WITHHOLDING = 900;
 /** Net cash deposited each quarter. */
 export const QUARTERLY_NET_PAY = QUARTERLY_GROSS_PAY - QUARTERLY_WITHHOLDING;
 

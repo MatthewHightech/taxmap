@@ -29,7 +29,7 @@ export function BriefingModal({ busy, onConfirm, onBack }: BriefingModalProps) {
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-                Job salary: <strong>$12,000 / year</strong> (~$1,000 / month)
+                Job salary: <strong>$24,000 / year</strong> (~$2,000 / month)
             </li>
             <li>Summer pay already deposited</li>
             <li>Starting cash buffer after that deposit</li>

@@ -1,12 +1,18 @@
 /**
  * Simplified Canadian charitable donation tax credits (educational).
- * Federal: first $200 @ 15%, remainder @ 29%.
+ * Federal: first $200 @ lowest federal rate, remainder @ 29%.
  * Provincial: Ontario-style first $200 @ 5.05%, remainder @ 11.16%.
  * Not tax advice — rates are illustrative.
  */
 
+import {
+  federalDonationCredit as federalDonationCreditFromTax,
+  federalTuitionCredit,
+  LOWEST_FEDERAL_RATE,
+} from "./taxFederal";
+
 export const DONATION_FIRST_BRACKET = 200;
-export const FEDERAL_LOW_RATE = 0.15;
+export const FEDERAL_LOW_RATE = LOWEST_FEDERAL_RATE;
 export const FEDERAL_HIGH_RATE = 0.29;
 /** Simplified Ontario charitable donation credit rates. */
 export const PROVINCIAL_LOW_RATE = 0.0505;
@@ -31,7 +37,7 @@ function tieredCredit(
 }
 
 export function federalDonationCredit(donations: number): number {
-  return tieredCredit(donations, FEDERAL_LOW_RATE, FEDERAL_HIGH_RATE);
+  return federalDonationCreditFromTax(donations);
 }
 
 export function provincialDonationCredit(donations: number): number {
@@ -55,12 +61,19 @@ export function totalDonationTaxCredit(donations: number): number {
   return donationCreditBreakdown(donations).total;
 }
 
-/** Credits from non-donation sources + donation tax credits. */
+/**
+ * HUD estimate of federal non-refundable credits from tuition
+ * (eligible fees × lowest rate) + federal donation credit.
+ * Does not include the automatic basic personal amount.
+ */
 export function effectiveTaxCredits(
-  otherCredits: number,
+  tuitionAmount: number,
   charitableDonations: number,
 ): number {
-  return otherCredits + totalDonationTaxCredit(charitableDonations);
+  return (
+    federalTuitionCredit(tuitionAmount) +
+    federalDonationCredit(charitableDonations)
+  );
 }
 
 export function applyDonation(
