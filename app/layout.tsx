@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Nunito, Source_Sans_3 } from "next/font/google";
+import { preload } from "react-dom";
 import { DisableNumberInputScroll } from "../components/DisableNumberInputScroll";
+import {
+  PLAYER_SPRITE_SRC,
+  TOWN_IMAGE_SRC,
+} from "../content/mapAssets";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import "./globals.css";
 
@@ -23,6 +28,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  preload(TOWN_IMAGE_SRC, { as: "image", type: "image/webp" });
+  preload(PLAYER_SPRITE_SRC, { as: "image", type: "image/webp" });
+
   return (
     <html
       lang="en"

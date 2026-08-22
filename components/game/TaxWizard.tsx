@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { donationCreditBreakdown } from "../../convex/lib/donations";
 import {
   computeFederalReturn,
@@ -50,6 +50,7 @@ const STEPS: Array<{ id: StepId; label: string }> = [
 type TaxWizardProps = {
   ledger: YearLedger;
   busy?: boolean;
+  onBack?: () => void;
   onFile: (filed: FiledReturn) => void;
 };
 
@@ -208,10 +209,38 @@ function LedgerPanel({ ledger }: { ledger: YearLedger }) {
   );
 }
 
-export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
+export function TaxWizard({ ledger, busy, onBack, onFile }: TaxWizardProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  /** Keeps the drawer mounted while the exit animation runs. */
+  const [ledgerMounted, setLedgerMounted] = useState(false);
+  /** True once the open transition should play (after first paint off-screen). */
+  const [ledgerActive, setLedgerActive] = useState(false);
   const step = STEPS[stepIndex]!.id;
+
+  useEffect(() => {
+    if (!ledgerOpen) {
+      setLedgerActive(false);
+      return;
+    }
+
+    setLedgerMounted(true);
+    let innerRaf = 0;
+    const outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => setLedgerActive(true));
+    });
+    return () => {
+      cancelAnimationFrame(outerRaf);
+      cancelAnimationFrame(innerRaf);
+    };
+  }, [ledgerOpen]);
+
+  // Unmount after close animation (timeout is more reliable than transitionend).
+  useEffect(() => {
+    if (ledgerOpen || !ledgerMounted) return;
+    const timeout = window.setTimeout(() => setLedgerMounted(false), 320);
+    return () => window.clearTimeout(timeout);
+  }, [ledgerOpen, ledgerMounted]);
 
   const [employment, setEmployment] = useState(
     String(ledger.employmentIncome),
@@ -277,13 +306,26 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-tm-gold/30 bg-black/40 px-4 py-3 backdrop-blur-md md:px-6">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-tm-green-300">
-            Tax Office · Spring
-          </p>
-          <h1 className="font-[family-name:var(--font-game)] text-lg font-extrabold text-tm-cream md:text-xl">
-            File your return
-          </h1>
+        <div className="flex min-w-0 items-center gap-3">
+          {onBack ? (
+            <button
+              type="button"
+              aria-label="Back to town"
+              disabled={busy}
+              onClick={onBack}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-tm-cream/25 bg-black/40 font-[family-name:var(--font-game)] text-lg font-extrabold text-tm-cream transition hover:border-tm-gold hover:text-tm-gold disabled:opacity-60"
+            >
+              ←
+            </button>
+          ) : null}
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-tm-green-300">
+              Tax Office · Spring
+            </p>
+            <h1 className="font-[family-name:var(--font-game)] text-lg font-extrabold text-tm-cream md:text-xl">
+              File your return
+            </h1>
+          </div>
         </div>
         <button
           type="button"
@@ -587,19 +629,27 @@ export function TaxWizard({ ledger, busy, onFile }: TaxWizardProps) {
         </div>
       </div>
 
-      {ledgerOpen ? (
-        <div className="fixed inset-0 z-50 flex justify-end">
+      {ledgerMounted ? (
+        <div
+          className={`fixed inset-0 z-50 flex justify-end ${
+            ledgerActive ? "" : "pointer-events-none"
+          }`}
+        >
           <button
             type="button"
             aria-label="Close ledger"
-            className="absolute inset-0 bg-black/55"
+            className={`absolute inset-0 bg-black/55 transition-opacity duration-300 ease-out ${
+              ledgerActive ? "opacity-100" : "opacity-0"
+            }`}
             onClick={() => setLedgerOpen(false)}
           />
           <aside
             role="dialog"
             aria-modal="true"
             aria-labelledby="ledger-title"
-            className="relative z-10 flex h-full w-full max-w-md flex-col border-l-4 border-tm-gold bg-tm-green-900 shadow-2xl"
+            className={`relative z-10 flex h-full w-full max-w-md flex-col border-l-4 border-tm-gold bg-tm-green-900 shadow-2xl transition-transform duration-300 ease-out ${
+              ledgerActive ? "translate-x-0" : "translate-x-full"
+            }`}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
               <h2

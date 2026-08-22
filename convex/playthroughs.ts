@@ -384,6 +384,33 @@ export const startFiling = mutation({
   },
 });
 
+export const cancelFiling = mutation({
+  args: {
+    playthroughId: v.id("playthroughs"),
+  },
+  returns: playthroughPublicValidator,
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!doc) {
+      throw new Error("Playthrough not found");
+    }
+    if (doc.status !== "filing") {
+      throw new Error("Not currently filing");
+    }
+
+    await ctx.db.patch("playthroughs", args.playthroughId, {
+      status: "playing",
+      updatedAt: Date.now(),
+    });
+
+    const updated = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!updated) {
+      throw new Error("Playthrough missing after update");
+    }
+    return { ...updated, netWorth: netWorth(updated) };
+  },
+});
+
 export const submitReturn = mutation({
   args: {
     playthroughId: v.id("playthroughs"),

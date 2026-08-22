@@ -352,6 +352,8 @@ export function TownMap({
             src={TOWN_IMAGE_SRC}
             alt=""
             draggable={false}
+            decoding="async"
+            fetchPriority="high"
             className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
           />
 

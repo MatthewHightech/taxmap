@@ -1,5 +1,7 @@
 "use client";
 
+import { PLAYER_SPRITE_SRC } from "../../content/mapAssets";
+
 type PlayerSpriteProps = {
   /** World X in px (sprite center). */
   x: number;
@@ -11,7 +13,7 @@ type PlayerSpriteProps = {
   size: number;
 };
 
-/** sprite_sheet.png is 2048×2048 with 4 columns × 2 rows (8 walk frames). */
+/** sprite_sheet2 is 2048×2048 with 4 columns × 2 rows (8 walk frames). */
 const COLS = 4;
 const ROWS = 2;
 const FRAME_COUNT = COLS * ROWS;
@@ -38,7 +40,7 @@ export function PlayerSprite({ x, y, frame, facing, size }: PlayerSpriteProps) {
       <div
         className="h-full w-full"
         style={{
-          backgroundImage: "url(/assets/sprite_sheet2.png)",
+          backgroundImage: `url(${PLAYER_SPRITE_SRC})`,
           backgroundRepeat: "no-repeat",
           backgroundSize: `${COLS * 100}% ${ROWS * 100}%`,
           backgroundPosition: `${(col / (COLS - 1)) * 100}% ${(row / (ROWS - 1)) * 100}%`,

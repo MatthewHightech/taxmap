@@ -37,6 +37,7 @@ export default function PlayPage() {
   const foodBankDonate = useMutation(api.playthroughs.foodBankDonate);
   const advanceSeason = useMutation(api.playthroughs.advanceSeason);
   const startFiling = useMutation(api.playthroughs.startFiling);
+  const cancelFiling = useMutation(api.playthroughs.cancelFiling);
   const submitReturn = useMutation(api.playthroughs.submitReturn);
 
   const playthrough = useQuery(
@@ -187,6 +188,11 @@ export default function PlayPage() {
     }
   }
 
+  async function onCancelFiling() {
+    if (!playthroughId || filingBusy) return;
+    await cancelFiling({ playthroughId });
+  }
+
   async function onFile(filed: FiledReturn) {
     if (!playthroughId) return;
     setFilingBusy(true);
@@ -286,10 +292,7 @@ export default function PlayPage() {
                 : `You owe $${snap.balance.toLocaleString()}.`
               : null}
           </p>
-          <p className="mt-6 font-[family-name:var(--font-game)] text-2xl text-tm-gold">
-            Score: {playthrough.score ?? "—"}
-          </p>
-          <p className="mt-2 text-sm text-tm-cream/70">
+          <p className="mt-6 text-sm text-tm-cream/70">
             Audit: {playthrough.auditResult ?? "none"}
           </p>
           <button
@@ -312,6 +315,7 @@ export default function PlayPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <TaxWizard
           busy={filingBusy}
+          onBack={() => void onCancelFiling()}
           onFile={(filed) => void onFile(filed)}
           ledger={{
             employmentIncome: playthrough.employmentIncome,
