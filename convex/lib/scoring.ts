@@ -6,6 +6,8 @@ export function computeScore(args: {
   ledger: LedgerFields;
   tax: TaxResult;
   auditResult: AuditOutcome;
+  /** 0–1 how closely filed amounts matched the true year ledger. */
+  filingAccuracy?: number;
 }): number {
   let score = 50;
 
@@ -25,9 +27,52 @@ export function computeScore(args: {
   // Filing on time always helps a bit
   score += 5;
 
+  if (args.filingAccuracy !== undefined) {
+    score += Math.round(args.filingAccuracy * 20) - 5;
+  }
+
   return clamp(score, 0, 100);
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+/** Compare filed return fields to the true ledger (exact dollar match). */
+export function filingAccuracyScore(args: {
+  filed: {
+    employmentIncome: number;
+    reportedSideIncome: number;
+    investmentIncome: number;
+    deductions: number;
+    credits: number;
+    charitableDonations: number;
+    withholdings: number;
+  };
+  truth: {
+    employmentIncome: number;
+    reportedSideIncome: number;
+    investmentIncome: number;
+    deductions: number;
+    credits: number;
+    charitableDonations: number;
+    withholdings: number;
+  };
+}): number {
+  const keys = [
+    "employmentIncome",
+    "reportedSideIncome",
+    "investmentIncome",
+    "deductions",
+    "credits",
+    "charitableDonations",
+    "withholdings",
+  ] as const;
+  let hits = 0;
+  for (const key of keys) {
+    if (Math.round(args.filed[key]) === Math.round(args.truth[key])) {
+      hits += 1;
+    }
+  }
+  return hits / keys.length;
 }

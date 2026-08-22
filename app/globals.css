@@ -36,3 +36,38 @@ body {
   color: var(--foreground);
   min-height: 100vh;
 }
+
+/* Hide spinner controls on number inputs everywhere */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Invisible scrollbars (scrolling still works) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+[role="dialog"] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+[role="dialog"]::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}

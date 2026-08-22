@@ -19,7 +19,7 @@ Show three personas; **only Student is playable** in MVP.
 ### Student briefing modal (copy targets)
 
 - **Goal:** Survive a school year of money choices, then file taxes in Spring.
-- **How to play:** Walk with WASD, enter buildings with E / click, pick trade-offs.
+- **How to play:** Walk with WASD, enter buildings with Spacebar / click, pick trade-offs.
 - **Starting conditions (Student):**
   - Gross salary: **$12,000 / year** (~$1,000 / month before tax)
   - Starting cash: **~$2,200** (tuneable)

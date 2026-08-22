@@ -104,7 +104,7 @@ export default function HomePage() {
         ) : null}
 
         <p className="mt-12 text-sm text-tm-cream/55">
-          Educational simulation only, not tax advice.
+          Educational simulation only, not tax advice. Not currently accepting lawsuits.
         </p>
       </div>
 

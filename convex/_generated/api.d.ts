@@ -10,6 +10,8 @@
 
 import type * as content_scenarios from "../content/scenarios.js";
 import type * as lib_audit from "../lib/audit.js";
+import type * as lib_bank from "../lib/bank.js";
+import type * as lib_donations from "../lib/donations.js";
 import type * as lib_ledger from "../lib/ledger.js";
 import type * as lib_scoring from "../lib/scoring.js";
 import type * as lib_seasons from "../lib/seasons.js";
@@ -25,6 +27,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   "content/scenarios": typeof content_scenarios;
   "lib/audit": typeof lib_audit;
+  "lib/bank": typeof lib_bank;
+  "lib/donations": typeof lib_donations;
   "lib/ledger": typeof lib_ledger;
   "lib/scoring": typeof lib_scoring;
   "lib/seasons": typeof lib_seasons;

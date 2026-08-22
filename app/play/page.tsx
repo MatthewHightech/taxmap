@@ -5,9 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DecisionModal } from "../../components/game/DecisionModal";
+import { BankModal } from "../../components/game/BankModal";
+import { FoodBankModal } from "../../components/game/FoodBankModal";
 import { Hud } from "../../components/game/Hud";
+import { TaxWizard, type FiledReturn } from "../../components/game/TaxWizard";
 import { TownMap } from "../../components/game/TownMap";
 import { api } from "../../convex/_generated/api";
+import type { BankAccountId } from "../../convex/lib/bank";
+import { effectiveTaxCredits } from "../../convex/lib/donations";
 import { scenariosForSeason } from "../../convex/content/scenarios";
 import { seasonActivitiesComplete } from "../../convex/lib/seasons";
 import {
@@ -24,8 +29,12 @@ export default function PlayPage() {
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
   const [choiceBusy, setChoiceBusy] = useState(false);
+  const [filingBusy, setFilingBusy] = useState(false);
   const create = useMutation(api.playthroughs.create);
   const applyChoice = useMutation(api.playthroughs.applyChoice);
+  const bankDeposit = useMutation(api.playthroughs.bankDeposit);
+  const bankLoan = useMutation(api.playthroughs.bankLoan);
+  const foodBankDonate = useMutation(api.playthroughs.foodBankDonate);
   const advanceSeason = useMutation(api.playthroughs.advanceSeason);
   const startFiling = useMutation(api.playthroughs.startFiling);
   const submitReturn = useMutation(api.playthroughs.submitReturn);
@@ -44,18 +53,37 @@ export default function PlayPage() {
     );
   }, [playthrough]);
 
-  const activeLocationIds = useMemo(() => {
+  const unlockedLocationIds = useMemo(() => {
     if (!playthrough) return [];
-    const fromScenarios = openScenarios.map((scenario) => scenario.locationId);
+    const ids = new Set(playthrough.unlockedLocationIds);
+    if (playthrough.status === "playing") {
+      ids.add("bank");
+      ids.add("foodBank");
+    }
+    return [...ids];
+  }, [playthrough]);
+
+  const activeLocationIds = useMemo(() => {
+    if (!playthrough || playthrough.status !== "playing") return [];
+    const ids = new Set(openScenarios.map((scenario) => scenario.locationId));
+    ids.add("bank");
+    ids.add("foodBank");
     if (
       playthrough.season === "april" &&
-      playthrough.status === "playing" &&
       playthrough.unlockedLocationIds.includes("taxOffice")
     ) {
-      return [...fromScenarios, "taxOffice"];
+      ids.add("taxOffice");
     }
-    return fromScenarios;
+    return [...ids];
   }, [openScenarios, playthrough]);
+
+  const displayCredits = useMemo(() => {
+    if (!playthrough) return 0;
+    return effectiveTaxCredits(
+      playthrough.credits,
+      playthrough.charitableDonations ?? 0,
+    );
+  }, [playthrough]);
 
   const canAdvanceSeason = useMemo(() => {
     if (!playthrough) return false;
@@ -66,12 +94,21 @@ export default function PlayPage() {
   }, [playthrough]);
 
   const scenarioForLocation = useMemo(() => {
-    if (!selectedLocation) return null;
+    if (
+      !selectedLocation ||
+      selectedLocation === "bank" ||
+      selectedLocation === "foodBank"
+    ) {
+      return null;
+    }
     return (
       openScenarios.find((scenario) => scenario.locationId === selectedLocation) ??
       null
     );
   }, [openScenarios, selectedLocation]);
+
+  const bankOpen = selectedLocation === "bank";
+  const foodBankOpen = selectedLocation === "foodBank";
 
   async function onChoose(optionId: string) {
     if (!playthroughId || !scenarioForLocation) return;
@@ -88,6 +125,41 @@ export default function PlayPage() {
     }
   }
 
+  async function onBankDeposit(
+    deposits: Array<{ accountId: BankAccountId; amount: number }>,
+  ) {
+    if (!playthroughId) return;
+    setChoiceBusy(true);
+    try {
+      await bankDeposit({ playthroughId, deposits });
+      setSelectedLocation(null);
+    } finally {
+      setChoiceBusy(false);
+    }
+  }
+
+  async function onBankLoan(amount: number) {
+    if (!playthroughId) return;
+    setChoiceBusy(true);
+    try {
+      await bankLoan({ playthroughId, amount });
+      setSelectedLocation(null);
+    } finally {
+      setChoiceBusy(false);
+    }
+  }
+
+  async function onFoodBankDonate(amount: number) {
+    if (!playthroughId) return;
+    setChoiceBusy(true);
+    try {
+      await foodBankDonate({ playthroughId, amount });
+      setSelectedLocation(null);
+    } finally {
+      setChoiceBusy(false);
+    }
+  }
+
   async function onTaxOffice() {
     if (!playthroughId || !playthrough) return;
     if (playthrough.status === "playing" && playthrough.season === "april") {
@@ -95,9 +167,17 @@ export default function PlayPage() {
     }
   }
 
-  async function onFile() {
+  async function onFile(filed: FiledReturn) {
     if (!playthroughId) return;
-    await submitReturn({ playthroughId });
+    setFilingBusy(true);
+    try {
+      await submitReturn({
+        playthroughId,
+        ...filed,
+      });
+    } finally {
+      setFilingBusy(false);
+    }
   }
 
   async function playAgain() {
@@ -209,45 +289,23 @@ export default function PlayPage() {
 
   if (playthrough.status === "filing") {
     return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 gap-0 px-4 py-8 md:px-8">
-        <aside className="w-56 shrink-0 rounded-l-2xl border border-r-0 border-tm-green-300/30 bg-white p-4 text-tm-ink">
-          <p className="text-xs font-semibold uppercase tracking-wide text-tm-green-700">
-            File your return
-          </p>
-          <ol className="mt-4 space-y-2 text-sm font-semibold">
-            <li className="text-tm-green-700">1. Income</li>
-            <li>2. Deductions</li>
-            <li>3. Credits</li>
-            <li>4. Review</li>
-            <li>5. File</li>
-          </ol>
-        </aside>
-        <section className="flex-1 rounded-r-2xl border border-tm-green-300/30 bg-tm-cream p-6 text-tm-ink">
-          <h2 className="font-[family-name:var(--font-game)] text-2xl font-bold">
-            Review (scaffold)
-          </h2>
-          <ul className="mt-4 space-y-2 text-sm">
-            <li>Employment: ${playthrough.employmentIncome.toLocaleString()}</li>
-            <li>
-              Reported side: ${playthrough.reportedSideIncome.toLocaleString()}
-            </li>
-            <li>Deductions: ${playthrough.deductions.toLocaleString()}</li>
-            <li>Credits: ${playthrough.credits.toLocaleString()}</li>
-            <li>Withholdings: ${playthrough.withholdings.toLocaleString()}</li>
-            <li>Audit risk: {playthrough.auditRisk}%</li>
-          </ul>
-          <p className="mt-4 text-xs text-tm-ink/60">
-            Educational simulation only — not tax advice.
-          </p>
-          <button
-            type="button"
-            onClick={() => void onFile()}
-            className="mt-6 rounded-xl bg-tm-green-700 px-5 py-3 font-bold text-white"
-          >
-            File return
-          </button>
-        </section>
-      </main>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TaxWizard
+          busy={filingBusy}
+          onFile={(filed) => void onFile(filed)}
+          ledger={{
+            employmentIncome: playthrough.employmentIncome,
+            reportedSideIncome: playthrough.reportedSideIncome,
+            unreportedSideIncome: playthrough.unreportedSideIncome,
+            investmentIncome: playthrough.investmentIncome,
+            deductions: playthrough.deductions,
+            credits: playthrough.credits,
+            charitableDonations: playthrough.charitableDonations ?? 0,
+            withholdings: playthrough.withholdings,
+            auditRisk: playthrough.auditRisk,
+          }}
+        />
+      </div>
     );
   }
 
@@ -255,7 +313,7 @@ export default function PlayPage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <div className="relative min-h-0 flex-1">
         <TownMap
-          unlockedLocationIds={playthrough.unlockedLocationIds}
+          unlockedLocationIds={unlockedLocationIds}
           activeLocationIds={activeLocationIds}
           onSelectLocation={(locationId) => {
             if (locationId === "taxOffice" && playthrough.season === "april") {
@@ -269,15 +327,37 @@ export default function PlayPage() {
           season={playthrough.season}
           cash={playthrough.cash}
           debt={playthrough.debt}
+          savings={playthrough.investments}
           deductions={playthrough.deductions}
-          credits={playthrough.credits}
+          credits={displayCredits}
           canAdvanceSeason={canAdvanceSeason}
           onAdvanceSeason={() => void onAdvanceSeason()}
           advancing={advancing}
         />
       </div>
 
-      {scenarioForLocation ? (
+      {bankOpen && playthrough ? (
+        <BankModal
+          cash={playthrough.cash}
+          investments={playthrough.investments}
+          hisaBalance={playthrough.hisaBalance}
+          tfsaBalance={playthrough.tfsaBalance}
+          rrspBalance={playthrough.rrspBalance}
+          fhsaBalance={playthrough.fhsaBalance}
+          busy={choiceBusy}
+          onDeposit={(deposits) => void onBankDeposit(deposits)}
+          onLoan={(amount) => void onBankLoan(amount)}
+          onClose={() => setSelectedLocation(null)}
+        />
+      ) : foodBankOpen && playthrough ? (
+        <FoodBankModal
+          cash={playthrough.cash}
+          charitableDonations={playthrough.charitableDonations}
+          busy={choiceBusy}
+          onDonate={(amount) => void onFoodBankDonate(amount)}
+          onClose={() => setSelectedLocation(null)}
+        />
+      ) : scenarioForLocation ? (
         <DecisionModal
           scenario={scenarioForLocation}
           busy={choiceBusy}

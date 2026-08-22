@@ -37,7 +37,7 @@ type CharacterSelectProps = {
 export function CharacterSelect({ onSelectStudent }: CharacterSelectProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-2xl border-2 border-tm-gold/60 bg-tm-green-900 p-6 shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-auto scrollbar-none rounded-2xl border-2 border-tm-gold/60 bg-tm-green-900 p-6 shadow-2xl">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-tm-green-300">
           Choose your life
         </p>

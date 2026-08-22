@@ -82,7 +82,7 @@ export function initialStudentLedger(): LedgerFields {
     deductions: 0,
     credits: 0,
     auditRisk: 0,
-    flags: ["salary_12k"],
+    flags: ["salary_12k", "has_hisa", "has_tfsa", "has_rrsp", "has_fhsa"],
   };
 }
 
@@ -99,6 +99,7 @@ export function formatEffectChips(effect: Effect): string[] {
     }
   };
   money("cash", "Cash");
+  money("investments", "Savings");
   money("debt", "Debt");
   money("employmentIncome", "Employment income");
   money("reportedSideIncome", "Reported gig");

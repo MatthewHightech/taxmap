@@ -14,7 +14,7 @@ type TownMapProps = {
 };
 
 /** How much larger the world is than the viewport (higher = more zoomed in). */
-const WORLD_ZOOM = 2.00;
+const WORLD_ZOOM = 1.60;
 /** Movement speed as fraction of world size per second. */
 const MOVE_SPEED = 0.22;
 /** Walk animation frames per second while moving. */
@@ -302,7 +302,7 @@ export function TownMap({
         event.preventDefault();
         setKey(event.code, true);
       }
-      if (event.code === "KeyE" && nearbyRef.current) {
+      if (event.code === "Space" && nearbyRef.current) {
         event.preventDefault();
         onSelectRef.current(nearbyRef.current);
       }
@@ -335,7 +335,7 @@ export function TownMap({
       className="relative h-full min-h-[420px] w-full flex-1 overflow-hidden bg-tm-green-900 outline-none"
       tabIndex={0}
       role="application"
-      aria-label="Town map. Use W A S D to walk. Press E near a building to enter."
+      aria-label="Town map. Use W A S D to walk. Press Spacebar near a building to enter."
       onMouseDown={() => viewportRef.current?.focus()}
     >
       {view.worldSize > 0 ? (
@@ -420,10 +420,10 @@ export function TownMap({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-full border-2 border-tm-green-300/70 bg-black/75 px-4 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-full border-2 border-tm-gold/70 bg-black/75 px-4 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
         <span className="text-tm-gold">WASD</span> walk
         {" · "}
-        <span className="text-tm-gold">E</span> select
+        <span className="text-tm-gold">Spacebar</span> select
         {nearbySpot ? (
           <span className="text-tm-cream/80"> · {nearbySpot.label}</span>
         ) : null}

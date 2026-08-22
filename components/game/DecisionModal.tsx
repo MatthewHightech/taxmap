@@ -36,7 +36,7 @@ export function DecisionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="decision-title"
-        className="relative max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border-4 border-tm-green-300 bg-tm-green-900/75 p-6 pt-12 shadow-2xl backdrop-blur-xl"
+        className="relative max-h-[90vh] w-full max-w-lg overflow-auto scrollbar-none rounded-2xl border-4 border-tm-green-300 bg-tm-green-900/75 p-6 pt-12 shadow-2xl backdrop-blur-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <button

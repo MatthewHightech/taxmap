@@ -3,12 +3,21 @@ import { getScenario } from "./content/scenarios";
 import { mutation, query } from "./_generated/server";
 import { rollAudit } from "./lib/audit";
 import {
+  applyBankDeposits,
+  applyBankLoan,
+  growSeasonSavings,
+} from "./lib/bank";
+import {
+  applyDonation,
+  effectiveTaxCredits,
+} from "./lib/donations";
+import {
   applyEffect,
   initialStudentLedger,
   netWorth,
   type LedgerFields,
 } from "./lib/ledger";
-import { computeScore } from "./lib/scoring";
+import { computeScore, filingAccuracyScore } from "./lib/scoring";
 import {
   nextSeason,
   QUARTERLY_GROSS_PAY,
@@ -40,6 +49,10 @@ const playthroughPublicValidator = v.object({
   cash: v.number(),
   investments: v.number(),
   debt: v.number(),
+  hisaBalance: v.optional(v.number()),
+  tfsaBalance: v.optional(v.number()),
+  rrspBalance: v.optional(v.number()),
+  fhsaBalance: v.optional(v.number()),
   employmentIncome: v.number(),
   reportedSideIncome: v.number(),
   unreportedSideIncome: v.number(),
@@ -47,6 +60,7 @@ const playthroughPublicValidator = v.object({
   withholdings: v.number(),
   deductions: v.number(),
   credits: v.number(),
+  charitableDonations: v.optional(v.number()),
   auditRisk: v.number(),
   flags: v.array(v.string()),
   filingSnapshot: v.optional(filingSnapshotValidator),
@@ -55,6 +69,13 @@ const playthroughPublicValidator = v.object({
   userId: v.optional(v.string()),
   netWorth: v.number(),
 });
+
+const bankAccountIdValidator = v.union(
+  v.literal("hisa"),
+  v.literal("tfsa"),
+  v.literal("rrsp"),
+  v.literal("fhsa"),
+);
 
 function grantQuarterlyPay(ledger: LedgerFields): LedgerFields {
   return {
@@ -85,6 +106,11 @@ export const create = mutation({
       persona: "student",
       playerName: args.playerName,
       ...ledger,
+      hisaBalance: 0,
+      tfsaBalance: 0,
+      rrspBalance: 0,
+      fhsaBalance: 0,
+      charitableDonations: 0,
     });
   },
 });
@@ -182,9 +208,11 @@ export const advanceSeason = mutation({
     }
 
     const paid = grantQuarterlyPay(doc);
+    const grown = growSeasonSavings(paid);
 
     await ctx.db.patch("playthroughs", args.playthroughId, {
       ...paid,
+      ...grown,
       season: upcoming,
       unlockedLocationIds: [...SEASON_LOCATIONS[upcoming]],
       updatedAt: Date.now(),
@@ -193,6 +221,132 @@ export const advanceSeason = mutation({
     const updated = await ctx.db.get("playthroughs", args.playthroughId);
     if (!updated) {
       throw new Error("Playthrough missing after update");
+    }
+    return { ...updated, netWorth: netWorth(updated) };
+  },
+});
+
+export const bankDeposit = mutation({
+  args: {
+    playthroughId: v.id("playthroughs"),
+    deposits: v.array(
+      v.object({
+        accountId: bankAccountIdValidator,
+        amount: v.number(),
+      }),
+    ),
+  },
+  returns: playthroughPublicValidator,
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!doc) {
+      throw new Error("Playthrough not found");
+    }
+    if (doc.status !== "playing") {
+      throw new Error("Bank is closed for this run");
+    }
+
+    const deposits = {
+      hisa: 0,
+      tfsa: 0,
+      rrsp: 0,
+      fhsa: 0,
+    };
+    for (const row of args.deposits) {
+      deposits[row.accountId] += Math.max(0, Math.floor(row.amount));
+    }
+
+    const next = applyBankDeposits(doc, deposits);
+
+    await ctx.db.patch("playthroughs", args.playthroughId, {
+      cash: next.cash,
+      investments: next.investments,
+      debt: next.debt,
+      hisaBalance: next.hisaBalance,
+      tfsaBalance: next.tfsaBalance,
+      rrspBalance: next.rrspBalance,
+      fhsaBalance: next.fhsaBalance,
+      employmentIncome: next.employmentIncome,
+      reportedSideIncome: next.reportedSideIncome,
+      unreportedSideIncome: next.unreportedSideIncome,
+      investmentIncome: next.investmentIncome,
+      withholdings: next.withholdings,
+      deductions: next.deductions,
+      credits: next.credits,
+      auditRisk: next.auditRisk,
+      flags: next.flags,
+      updatedAt: Date.now(),
+    });
+
+    const updated = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!updated) {
+      throw new Error("Playthrough missing after deposit");
+    }
+    return { ...updated, netWorth: netWorth(updated) };
+  },
+});
+
+export const bankLoan = mutation({
+  args: {
+    playthroughId: v.id("playthroughs"),
+    amount: v.number(),
+  },
+  returns: playthroughPublicValidator,
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!doc) {
+      throw new Error("Playthrough not found");
+    }
+    if (doc.status !== "playing") {
+      throw new Error("Bank is closed for this run");
+    }
+
+    const next = applyBankLoan(doc, args.amount);
+
+    await ctx.db.patch("playthroughs", args.playthroughId, {
+      cash: next.cash,
+      debt: next.debt,
+      flags: next.flags,
+      updatedAt: Date.now(),
+    });
+
+    const updated = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!updated) {
+      throw new Error("Playthrough missing after loan");
+    }
+    return { ...updated, netWorth: netWorth(updated) };
+  },
+});
+
+export const foodBankDonate = mutation({
+  args: {
+    playthroughId: v.id("playthroughs"),
+    amount: v.number(),
+  },
+  returns: playthroughPublicValidator,
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!doc) {
+      throw new Error("Playthrough not found");
+    }
+    if (doc.status !== "playing") {
+      throw new Error("Food Bank is closed for this run");
+    }
+
+    const next = applyDonation(doc, args.amount);
+    const flags = new Set(doc.flags);
+    flags.add("donated_food_bank");
+
+    await ctx.db.patch("playthroughs", args.playthroughId, {
+      cash: next.cash,
+      charitableDonations: next.charitableDonations,
+      flags: [...flags],
+      updatedAt: Date.now(),
+    });
+
+    const updated = await ctx.db.get("playthroughs", args.playthroughId);
+    if (!updated) {
+      throw new Error("Playthrough missing after donation");
     }
     return { ...updated, netWorth: netWorth(updated) };
   },
@@ -228,6 +382,13 @@ export const startFiling = mutation({
 export const submitReturn = mutation({
   args: {
     playthroughId: v.id("playthroughs"),
+    employmentIncome: v.number(),
+    reportedSideIncome: v.number(),
+    investmentIncome: v.number(),
+    deductions: v.number(),
+    credits: v.number(),
+    charitableDonations: v.number(),
+    withholdings: v.number(),
   },
   returns: playthroughPublicValidator,
   handler: async (ctx, args) => {
@@ -238,8 +399,31 @@ export const submitReturn = mutation({
     if (doc.season !== "april") {
       throw new Error("Can only file in Spring");
     }
+    if (doc.status !== "filing" && doc.status !== "playing") {
+      throw new Error("Return already filed");
+    }
 
-    const tax = computeFederalReturn(doc);
+    const filed = {
+      employmentIncome: Math.max(0, Math.floor(args.employmentIncome)),
+      reportedSideIncome: Math.max(0, Math.floor(args.reportedSideIncome)),
+      investmentIncome: Math.max(0, Math.floor(args.investmentIncome)),
+      deductions: Math.max(0, Math.floor(args.deductions)),
+      credits: Math.max(0, Math.floor(args.credits)),
+      charitableDonations: Math.max(0, Math.floor(args.charitableDonations)),
+      withholdings: Math.max(0, Math.floor(args.withholdings)),
+    };
+
+    const tax = computeFederalReturn({
+      employmentIncome: filed.employmentIncome,
+      reportedSideIncome: filed.reportedSideIncome,
+      investmentIncome: filed.investmentIncome,
+      deductions: filed.deductions,
+      credits: effectiveTaxCredits(
+        filed.credits,
+        filed.charitableDonations,
+      ),
+      withholdings: filed.withholdings,
+    });
     const { result: auditResult, penalty } = rollAudit(
       doc.auditRisk,
       doc.unreportedSideIncome,
@@ -264,17 +448,33 @@ export const submitReturn = mutation({
       cash -= filingSnapshot.balance;
     }
 
+    const accuracy = filingAccuracyScore({
+      filed,
+      truth: {
+        employmentIncome: doc.employmentIncome,
+        reportedSideIncome: doc.reportedSideIncome,
+        investmentIncome: doc.investmentIncome,
+        deductions: doc.deductions,
+        credits: doc.credits,
+        charitableDonations: doc.charitableDonations ?? 0,
+        withholdings: doc.withholdings,
+      },
+    });
+
     const ledgerForScore = {
       cash,
       investments: doc.investments,
       debt: doc.debt,
-      employmentIncome: doc.employmentIncome,
-      reportedSideIncome: doc.reportedSideIncome,
+      employmentIncome: filed.employmentIncome,
+      reportedSideIncome: filed.reportedSideIncome,
       unreportedSideIncome: doc.unreportedSideIncome,
-      investmentIncome: doc.investmentIncome,
-      withholdings: doc.withholdings,
-      deductions: doc.deductions,
-      credits: doc.credits,
+      investmentIncome: filed.investmentIncome,
+      withholdings: filed.withholdings,
+      deductions: filed.deductions,
+      credits: effectiveTaxCredits(
+        filed.credits,
+        filed.charitableDonations,
+      ),
       auditRisk: doc.auditRisk,
       flags: doc.flags,
     };
@@ -283,6 +483,7 @@ export const submitReturn = mutation({
       ledger: ledgerForScore,
       tax: filingSnapshot,
       auditResult,
+      filingAccuracy: accuracy,
     });
 
     await ctx.db.patch("playthroughs", args.playthroughId, {
@@ -315,12 +516,7 @@ export const seedDemo = mutation({
       status: "playing",
       completedScenarioIds: [
         "may-home-rent",
-        "may-car-upkeep",
-        "may-bank-setup",
         "sept-uni-courses",
-        "sept-grocery",
-        "sept-bank-fund",
-        "jan-car-emergency",
         "jan-side-gig",
         "jan-fake-deduction",
       ],
@@ -330,6 +526,10 @@ export const seedDemo = mutation({
       cash: 2100,
       investments: 1400,
       debt: 2400,
+      hisaBalance: 200,
+      tfsaBalance: 200,
+      rrspBalance: 1000,
+      fhsaBalance: 0,
       employmentIncome: 12000,
       reportedSideIncome: 350,
       unreportedSideIncome: 250,
@@ -337,6 +537,7 @@ export const seedDemo = mutation({
       withholdings: 4500,
       deductions: 500,
       credits: 360,
+      charitableDonations: 200,
       auditRisk: 40,
       flags: [
         "salary_12k",

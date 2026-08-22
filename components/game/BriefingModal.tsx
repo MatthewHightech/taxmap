@@ -9,7 +9,7 @@ type BriefingModalProps = {
 export function BriefingModal({ busy, onConfirm, onBack }: BriefingModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl border-2 border-tm-gold/60 bg-tm-green-900 p-6 shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-auto scrollbar-none rounded-2xl border-2 border-tm-gold/60 bg-tm-green-900 p-6 shadow-2xl">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-tm-green-300">
           University Student
         </p>
@@ -18,7 +18,8 @@ export function BriefingModal({ busy, onConfirm, onBack }: BriefingModalProps) {
         </h2>
         <p className="mt-3 text-tm-cream/85">
           Walk the town with <span className="text-tm-gold">WASD</span>, enter
-          buildings with <span className="text-tm-gold">E</span> or a click, and
+          buildings with <span className="text-tm-gold">Spacebar</span> or a
+          click, and
           make money choices through Summer, Fall, Winter, and Spring tax filing.
         </p>
 
@@ -28,17 +29,16 @@ export function BriefingModal({ busy, onConfirm, onBack }: BriefingModalProps) {
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-                Job salary: <strong>$12,000 / year</strong> (~$1,000 / month gross)
+                Job salary: <strong>$12,000 / year</strong> (~$1,000 / month)
             </li>
-            <li>Summer pay already deposited (first quarter + withholdings)</li>
+            <li>Summer pay already deposited</li>
             <li>Starting cash buffer after that deposit</li>
             <li>No student loans yet — those show up if you borrow for tuition</li>
           </ul>
         </div>
 
         <p className="mt-4 text-xs text-tm-cream/55">
-          Educational simulation only — not tax advice. Federal tax is simplified
-          for play.
+          Educational simulation only, not tax advice. Not currently accepting lawsuits.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">

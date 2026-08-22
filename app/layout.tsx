@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Nunito, Source_Sans_3 } from "next/font/google";
+import { DisableNumberInputScroll } from "../components/DisableNumberInputScroll";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import "./globals.css";
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${nunito.variable} ${sourceSans.variable} h-full antialiased`}
     >
       <body className="flex h-full min-h-full flex-col overflow-hidden font-[family-name:var(--font-ui)]">
+        <DisableNumberInputScroll />
         <ConvexClientProvider>{children}</ConvexClientProvider>
       </body>
     </html>

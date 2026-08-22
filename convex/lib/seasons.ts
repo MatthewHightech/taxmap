@@ -14,19 +14,22 @@ export const SEASON_LABELS: Record<Season, string> = {
   april: "Spring · Tax Day",
 };
 
-/** Locations unlocked at the start of each season. */
+/**
+ * Locations unlocked at the start of each season.
+ * Bank and Food Bank are always available (optional; never block progress).
+ */
 export const SEASON_LOCATIONS: Record<Season, string[]> = {
-  may: ["home", "car", "bank"],
-  september: ["university", "grocery", "bank"],
-  january: ["home", "car", "grocery"],
-  april: ["taxOffice"],
+  may: ["home", "bank", "foodBank"],
+  september: ["university", "bank", "foodBank"],
+  january: ["home", "university", "bank", "foodBank"],
+  april: ["taxOffice", "bank", "foodBank"],
 };
 
-/** How many scenarios must be completed before the season can advance (Spring has 0). */
+/** Required story scenarios per season (bank / food bank never count). */
 export const SEASON_REQUIRED_SCENARIOS: Record<Season, number> = {
-  may: 3,
-  september: 3,
-  january: 3,
+  may: 1,
+  september: 1,
+  january: 2,
   april: 0,
 };
 

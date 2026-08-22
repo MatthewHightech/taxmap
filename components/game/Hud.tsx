@@ -7,6 +7,7 @@ type GameHudProps = {
   season: Season;
   cash: number;
   debt: number;
+  savings: number;
   deductions: number;
   credits: number;
   canAdvanceSeason: boolean;
@@ -48,6 +49,7 @@ export function Hud({
   season,
   cash,
   debt,
+  savings,
   deductions,
   credits,
   canAdvanceSeason,
@@ -90,6 +92,7 @@ export function Hud({
 
       <div className="absolute right-4 top-4 flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <MoneyBubble label="Cash" value={cash} accent="gold" />
+        <MoneyBubble label="Savings" value={savings} accent="green" />
         <MoneyBubble label="Debt" value={debt} accent="cream" />
         <MoneyBubble label="Credits" value={credits} accent="cream" />
         <MoneyBubble label="Deductions" value={deductions} accent="cream" />
