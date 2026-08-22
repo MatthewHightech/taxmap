@@ -8,7 +8,8 @@ services:
     plan: starter
     region: oregon
     rootDir: .
-    buildCommand: npx convex deploy --cmd 'npm run build'
+    # Install deps first — Render does not always run npm install before a custom buildCommand.
+    buildCommand: npm ci && npx convex deploy --cmd 'npm run build'
     startCommand: npm run start
     healthCheckPath: /
     envVars:

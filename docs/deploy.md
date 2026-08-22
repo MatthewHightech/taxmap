@@ -112,8 +112,10 @@ Set these environment variables on the service:
 Build command (already in `render.yaml`):
 
 ```bash
-npx convex deploy --cmd 'npm run build'
+npm ci && npx convex deploy --cmd 'npm run build'
 ```
+
+Use a **Production** deploy key (not Preview/Dev). If build logs say `[Development]`, recreate the key under Settings → Deploy Keys → Production.
 
 Start command:
 
@@ -125,9 +127,9 @@ npm run start
 
 1. **New → Web Service** → connect repo
 2. Runtime: **Node**
-3. Build command: `npx convex deploy --cmd 'npm run build'`
+3. Build command: `npm ci && npx convex deploy --cmd 'npm run build'`
 4. Start command: `npm start`
-5. Add env var `CONVEX_DEPLOY_KEY`
+5. Add env var `CONVEX_DEPLOY_KEY` (Production key from Convex → Settings → Deploy Keys)
 6. Instance: free/starter is fine for the hackathon
 
 ### Option C — Static-ish without deploy key
