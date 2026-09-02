@@ -67,6 +67,8 @@ export const BANK_ACCOUNTS: ReadonlyArray<{
 export const LOAN_INTEREST_RATE = 0.1;
 export const LOAN_MIN = 100;
 export const LOAN_MAX = 5000;
+/** One personal loan per run — prevents stacking max loans. */
+export const PERSONAL_LOAN_FLAG = "personal_loan";
 
 export const LOAN_TERMS = {
   interestRate: LOAN_INTEREST_RATE,
@@ -74,14 +76,23 @@ export const LOAN_TERMS = {
   maxAmount: LOAN_MAX,
   title: "Personal loan",
   summary:
-    "Borrow cash now. You repay principal plus a 10% flat fee by Tax Day (simplified).",
+    "Borrow cash now (once per run). You repay principal plus a 10% flat fee by Tax Day (simplified).",
   bullets: [
     "Cash increases by the amount you borrow",
     "Debt increases by principal + 10% fee",
     "Example: borrow $1,000 → +$1,000 cash, +$1,100 debt",
+    "Only one personal loan per playthrough",
     "No monthly payments in this sim — it sits on your ledger until Spring",
   ],
 } as const;
+
+/** Reject NaN / Infinity before money math. */
+export function requireFiniteMoney(amount: number, label = "Amount"): number {
+  if (!Number.isFinite(amount)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+  return amount;
+}
 
 export function emptyBankBalances(): BankBalances {
   return { hisa: 0, tfsa: 0, rrsp: 0, fhsa: 0 };
@@ -197,11 +208,14 @@ export function applyBankDeposits(
   ledger: BankLedger,
   deposits: BankBalances,
 ): BankLedgerResult {
-  const amounts = BANK_ACCOUNTS.map((account) => ({
-    id: account.id,
-    amount: Math.max(0, Math.floor(deposits[account.id] || 0)),
-    deductible: account.deductible,
-  }));
+  const amounts = BANK_ACCOUNTS.map((account) => {
+    requireFiniteMoney(deposits[account.id] || 0, "Deposit");
+    return {
+      id: account.id,
+      amount: Math.max(0, Math.floor(deposits[account.id] || 0)),
+      deductible: account.deductible,
+    };
+  });
 
   const total = amounts.reduce((sum, row) => sum + row.amount, 0);
   if (total <= 0) {
@@ -236,10 +250,14 @@ export function applyBankWithdrawals(
   ledger: BankLedger,
   withdrawals: BankBalances,
 ): BankLedgerResult {
-  const amounts = BANK_ACCOUNTS.map((account) => ({
-    id: account.id,
-    amount: Math.max(0, Math.floor(withdrawals[account.id] || 0)),
-  }));
+  const amounts = BANK_ACCOUNTS.map((account) => {
+    requireFiniteMoney(withdrawals[account.id] || 0, "Withdrawal");
+    return {
+      id: account.id,
+      amount: Math.max(0, Math.floor(withdrawals[account.id] || 0)),
+      deductible: account.deductible,
+    };
+  });
 
   const total = amounts.reduce((sum, row) => sum + row.amount, 0);
   if (total <= 0) {
@@ -247,6 +265,7 @@ export function applyBankWithdrawals(
   }
 
   const balances = balancesFromDoc(ledger);
+  let deductions = ledger.deductions;
   for (const row of amounts) {
     if (row.amount <= 0) continue;
     if (row.amount > balances[row.id]) {
@@ -255,10 +274,15 @@ export function applyBankWithdrawals(
       );
     }
     balances[row.id] -= row.amount;
+    // Educational: undoing a contribution also undoes that year's deduction.
+    if (row.deductible) {
+      deductions = Math.max(0, deductions - row.amount);
+    }
   }
 
   return withBalances(ledger, balances, {
     cash: ledger.cash + total,
+    deductions,
   });
 }
 
@@ -296,6 +320,7 @@ export function applyBankLoan(
   ledger: LedgerFields,
   principal: number,
 ): LedgerFields {
+  requireFiniteMoney(principal, "Loan amount");
   const amount = Math.floor(principal);
   if (amount < LOAN_MIN) {
     throw new Error(`Minimum loan is $${LOAN_MIN}`);
@@ -303,9 +328,12 @@ export function applyBankLoan(
   if (amount > LOAN_MAX) {
     throw new Error(`Maximum loan is $${LOAN_MAX.toLocaleString()}`);
   }
+  if (ledger.flags.includes(PERSONAL_LOAN_FLAG)) {
+    throw new Error("You already took a personal loan this run");
+  }
 
   const flags = new Set(ledger.flags);
-  flags.add("personal_loan");
+  flags.add(PERSONAL_LOAN_FLAG);
 
   return {
     ...ledger,

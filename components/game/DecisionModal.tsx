@@ -7,10 +7,14 @@ import {
   tuitionOption,
   type Scenario,
 } from "../../convex/content/scenarios";
-import { formatEffectChips } from "../../convex/lib/ledger";
+import {
+  effectAffordable,
+  formatEffectChips,
+} from "../../convex/lib/ledger";
 
 type DecisionModalProps = {
   scenario: Scenario;
+  cash: number;
   onChoose: (optionId: string) => void;
   onClose: () => void;
   busy?: boolean;
@@ -18,6 +22,7 @@ type DecisionModalProps = {
 
 export function DecisionModal({
   scenario,
+  cash,
   onChoose,
   onClose,
   busy,
@@ -59,20 +64,27 @@ export function DecisionModal({
           {scenario.title}
         </h2>
         <p className="mt-3 text-tm-cream/85">{scenario.body}</p>
+        <p className="mt-2 text-sm text-tm-cream/70">
+          Available cash:{" "}
+          <span className="font-bold text-tm-gold">
+            ${cash.toLocaleString()}
+          </span>
+        </p>
 
         {isCoursePicker ? (
-          <CoursePickerOptions busy={busy} onChoose={onChoose} />
+          <CoursePickerOptions cash={cash} busy={busy} onChoose={onChoose} />
         ) : (
           <div className="mt-6 space-y-3">
             {scenario.options.map((option) => {
               const chips = formatEffectChips(option.effects);
+              const affordable = effectAffordable(cash, option.effects);
               return (
                 <button
                   key={option.id}
                   type="button"
-                  disabled={busy}
+                  disabled={busy || !affordable}
                   onClick={() => onChoose(option.id)}
-                  className="w-full rounded-xl border-2 border-tm-green-300/50 bg-tm-green-900/80 px-4 py-3 text-left transition hover:border-tm-gold disabled:opacity-60"
+                  className="w-full rounded-xl border-2 border-tm-green-300/50 bg-tm-green-900/80 px-4 py-3 text-left transition hover:border-tm-gold disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <div className="font-[family-name:var(--font-game)] font-bold text-tm-cream">
                     {option.label}
@@ -80,6 +92,11 @@ export function DecisionModal({
                   <div className="text-sm text-tm-cream/70">
                     {option.description}
                   </div>
+                  {!affordable ? (
+                    <p className="mt-1 text-xs font-semibold text-red-300">
+                      Not enough cash
+                    </p>
+                  ) : null}
                   {chips.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {chips.map((chip) => (
@@ -103,9 +120,11 @@ export function DecisionModal({
 }
 
 function CoursePickerOptions({
+  cash,
   busy,
   onChoose,
 }: {
+  cash: number;
   busy?: boolean;
   onChoose: (optionId: string) => void;
 }) {
@@ -113,6 +132,7 @@ function CoursePickerOptions({
   const cashOption = useMemo(() => tuitionOption(courses, "cash"), [courses]);
   const loanOption = useMemo(() => tuitionOption(courses, "loan"), [courses]);
   const tuition = courses * 600;
+  const canPayCash = cash >= tuition;
 
   return (
     <div className="mt-6 space-y-4">
@@ -153,20 +173,26 @@ function CoursePickerOptions({
         </p>
       </div>
 
-      {[cashOption, loanOption].map((option) => {
+      {[
+        { option: cashOption, disabled: !canPayCash, reason: "Not enough cash" },
+        { option: loanOption, disabled: false, reason: null },
+      ].map(({ option, disabled, reason }) => {
         const chips = formatEffectChips(option.effects);
         return (
           <button
             key={option.id}
             type="button"
-            disabled={busy}
+            disabled={busy || disabled}
             onClick={() => onChoose(option.id)}
-            className="w-full rounded-xl border-2 border-tm-green-300/50 bg-tm-green-900/80 px-4 py-3 text-left transition hover:border-tm-gold disabled:opacity-60"
+            className="w-full rounded-xl border-2 border-tm-green-300/50 bg-tm-green-900/80 px-4 py-3 text-left transition hover:border-tm-gold disabled:cursor-not-allowed disabled:opacity-45"
           >
             <div className="font-[family-name:var(--font-game)] font-bold text-tm-cream">
               {option.label}
             </div>
             <div className="text-sm text-tm-cream/70">{option.description}</div>
+            {disabled && reason ? (
+              <p className="mt-1 text-xs font-semibold text-red-300">{reason}</p>
+            ) : null}
             {chips.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {chips.map((chip) => (

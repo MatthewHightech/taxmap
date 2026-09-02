@@ -50,8 +50,16 @@ export function applyEffect(ledger: LedgerFields, effect: Effect): LedgerFields 
     flags.delete(flag);
   }
 
+  const cashDelta = effect.cash ?? 0;
+  const nextCash = ledger.cash + cashDelta;
+  if (cashDelta < 0 && nextCash < 0) {
+    throw new Error(
+      `Not enough cash (need $${Math.abs(cashDelta).toLocaleString()}, have $${ledger.cash.toLocaleString()})`,
+    );
+  }
+
   return {
-    cash: ledger.cash + (effect.cash ?? 0),
+    cash: nextCash,
     investments: ledger.investments + (effect.investments ?? 0),
     debt: Math.max(0, ledger.debt + (effect.debt ?? 0)),
     employmentIncome: ledger.employmentIncome + (effect.employmentIncome ?? 0),
@@ -65,6 +73,15 @@ export function applyEffect(ledger: LedgerFields, effect: Effect): LedgerFields 
     auditRisk: clamp(ledger.auditRisk + (effect.auditRisk ?? 0), 0, 100),
     flags: [...flags],
   };
+}
+
+/** True when this choice would leave cash below zero. */
+export function effectAffordable(
+  cash: number,
+  effect: Pick<Effect, "cash">,
+): boolean {
+  const delta = effect.cash ?? 0;
+  return delta >= 0 || cash + delta >= 0;
 }
 
 function clamp(value: number, min: number, max: number): number {

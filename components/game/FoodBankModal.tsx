@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import {
-  donationCreditBreakdown,
   DONATION_FIRST_BRACKET,
   FEDERAL_HIGH_RATE,
   FEDERAL_LOW_RATE,
+  federalDonationCredit,
 } from "../../convex/lib/donations";
 
 type FoodBankModalProps = {
@@ -38,13 +38,14 @@ export function FoodBankModal({
 
   const amount = parseDollars(amountRaw);
 
+  // Match filing: federal donation credit only (sim is federal T1).
   const preview = useMemo(() => {
-    const before = donationCreditBreakdown(charitableDonations);
-    const after = donationCreditBreakdown(charitableDonations + amount);
+    const before = federalDonationCredit(charitableDonations);
+    const after = federalDonationCredit(charitableDonations + amount);
     return {
       before,
       after,
-      creditAdded: after.total - before.total,
+      creditAdded: after - before,
     };
   }, [amount, charitableDonations]);
 
@@ -104,8 +105,8 @@ export function FoodBankModal({
 
         {charitableDonations > 0 ? (
           <p className="mt-2 text-xs font-bold uppercase tracking-wide text-tm-green-300">
-            Donated this year: ${charitableDonations.toLocaleString()} · Credit so
-            far ${preview.before.total.toLocaleString()}
+            Donated this year: ${charitableDonations.toLocaleString()} · Federal
+            credit so far ${preview.before.toLocaleString()}
           </p>
         ) : null}
 
@@ -151,34 +152,19 @@ export function FoodBankModal({
 
         <div className="mt-4 rounded-xl border border-tm-gold/40 bg-tm-gold/10 px-4 py-3 text-sm text-tm-cream/85">
           <p className="text-[10px] font-bold uppercase tracking-wide text-tm-gold">
-            Tax credit preview (this gift)
+            Federal tax credit preview (this gift)
           </p>
-          <div className="mt-2 flex justify-between">
-            <span>Federal credit</span>
-            <span className="font-bold text-tm-cream">
-              +${(preview.after.federal - preview.before.federal).toLocaleString()}
-            </span>
-          </div>
-          <div className="mt-1 flex justify-between">
-            <span>Provincial credit</span>
-            <span className="font-bold text-tm-cream">
-              +$
-              {(
-                preview.after.provincial - preview.before.provincial
-              ).toLocaleString()}
-            </span>
-          </div>
           <div className="mt-2 flex justify-between border-t border-tm-cream/15 pt-2">
-            <span>Total credit added</span>
+            <span>Federal credit added</span>
             <span className="font-bold text-tm-gold">
               +${preview.creditAdded.toLocaleString()}
             </span>
           </div>
           <p className="mt-3 text-xs text-tm-cream/55">
             First ${DONATION_FIRST_BRACKET} of yearly donations ×{" "}
-            {(FEDERAL_LOW_RATE * 100).toFixed(0)}% federal; remainder ×{" "}
-            {(FEDERAL_HIGH_RATE * 100).toFixed(0)}% (plus provincial). Educational
-            sim only.
+            {(FEDERAL_LOW_RATE * 100).toFixed(1)}% federal; remainder ×{" "}
+            {(FEDERAL_HIGH_RATE * 100).toFixed(0)}%. Matches Spring filing
+            (federal only). Educational sim only.
           </p>
         </div>
 

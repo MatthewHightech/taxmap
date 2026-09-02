@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { getScenario } from "./content/scenarios";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { rollAudit } from "./lib/audit";
 import {
   applyBankLoan,
@@ -164,7 +164,7 @@ export const applyChoice = mutation({
       throw new Error("Unknown option");
     }
 
-    let nextLedger: LedgerFields = applyEffect(doc, option.effects);
+    const nextLedger: LedgerFields = applyEffect(doc, option.effects);
     const completedScenarioIds = [
       ...doc.completedScenarioIds,
       args.scenarioId,
@@ -445,6 +445,19 @@ export const submitReturn = mutation({
       withholdings: Math.max(0, Math.floor(args.withholdings)),
     };
 
+    for (const [key, value] of Object.entries(filed)) {
+      if (!Number.isFinite(value)) {
+        throw new Error(`Invalid ${key}`);
+      }
+    }
+
+    // Cap withholdings at the true payroll amount so players cannot mint cash
+    // by typing a fake "tax already withheld" figure.
+    const settlementWithholdings = Math.min(
+      filed.withholdings,
+      Math.max(0, doc.withholdings),
+    );
+
     const tax = computeFederalReturn({
       employmentIncome: filed.employmentIncome,
       reportedSideIncome: filed.reportedSideIncome,
@@ -452,7 +465,7 @@ export const submitReturn = mutation({
       deductions: filed.deductions,
       tuitionAmount: filed.credits,
       charitableDonations: filed.charitableDonations,
-      withholdings: filed.withholdings,
+      withholdings: settlementWithholdings,
     });
     const { result: auditResult, penalty } = rollAudit(
       doc.auditRisk,
@@ -533,8 +546,8 @@ export const submitReturn = mutation({
   },
 });
 
-/** Judge-demo seed: Spring with a messy student ledger. */
-export const seedDemo = mutation({
+/** Judge-demo seed: Spring with a messy student ledger. Backend-only. */
+export const seedDemo = internalMutation({
   args: {},
   returns: v.id("playthroughs"),
   handler: async (ctx) => {

@@ -80,8 +80,11 @@ export function applyDonation(
   state: { cash: number; charitableDonations?: number },
   amount: number,
 ): { cash: number; charitableDonations: number; creditAdded: number } {
+  if (!Number.isFinite(amount)) {
+    throw new Error("Donation must be a finite number");
+  }
   const gift = Math.floor(amount);
-  if (!Number.isFinite(gift) || gift <= 0) {
+  if (gift <= 0) {
     throw new Error("Donation must be a positive amount");
   }
   if (gift > state.cash) {

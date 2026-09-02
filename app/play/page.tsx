@@ -12,6 +12,7 @@ import { TaxWizard, type FiledReturn } from "../../components/game/TaxWizard";
 import { TownMap } from "../../components/game/TownMap";
 import { api } from "../../convex/_generated/api";
 import type { BankAccountId } from "../../convex/lib/bank";
+import { PERSONAL_LOAN_FLAG } from "../../convex/lib/bank";
 import { effectiveTaxCredits } from "../../convex/lib/donations";
 import { scenariosForSeason } from "../../convex/content/scenarios";
 import { seasonActivitiesComplete } from "../../convex/lib/seasons";
@@ -22,6 +23,10 @@ import {
   writePlaythroughId,
 } from "../../lib/playthroughStorage";
 
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 export default function PlayPage() {
   const router = useRouter();
   const isClient = useIsClient();
@@ -30,6 +35,7 @@ export default function PlayPage() {
   const [advancing, setAdvancing] = useState(false);
   const [choiceBusy, setChoiceBusy] = useState(false);
   const [filingBusy, setFilingBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const create = useMutation(api.playthroughs.create);
   const applyChoice = useMutation(api.playthroughs.applyChoice);
   const bankTransfer = useMutation(api.playthroughs.bankTransfer);
@@ -129,10 +135,16 @@ export default function PlayPage() {
 
   const bankOpen = selectedLocation === "bank";
   const foodBankOpen = selectedLocation === "foodBank";
+  const modalOpen =
+    bankOpen ||
+    foodBankOpen ||
+    scenarioForLocation !== null ||
+    selectedLocation !== null;
 
   async function onChoose(optionId: string) {
     if (!playthroughId || !scenarioForLocation) return;
     setChoiceBusy(true);
+    setActionError(null);
     try {
       await applyChoice({
         playthroughId,
@@ -140,6 +152,8 @@ export default function PlayPage() {
         optionId,
       });
       setSelectedLocation(null);
+    } catch (err) {
+      setActionError(errorMessage(err, "Could not apply that choice"));
     } finally {
       setChoiceBusy(false);
     }
@@ -151,9 +165,12 @@ export default function PlayPage() {
   }) {
     if (!playthroughId) return;
     setChoiceBusy(true);
+    setActionError(null);
     try {
       await bankTransfer({ playthroughId, ...args });
       setSelectedLocation(null);
+    } catch (err) {
+      setActionError(errorMessage(err, "Bank transfer failed"));
     } finally {
       setChoiceBusy(false);
     }
@@ -162,9 +179,12 @@ export default function PlayPage() {
   async function onBankLoan(amount: number) {
     if (!playthroughId) return;
     setChoiceBusy(true);
+    setActionError(null);
     try {
       await bankLoan({ playthroughId, amount });
       setSelectedLocation(null);
+    } catch (err) {
+      setActionError(errorMessage(err, "Loan failed"));
     } finally {
       setChoiceBusy(false);
     }
@@ -173,9 +193,12 @@ export default function PlayPage() {
   async function onFoodBankDonate(amount: number) {
     if (!playthroughId) return;
     setChoiceBusy(true);
+    setActionError(null);
     try {
       await foodBankDonate({ playthroughId, amount });
       setSelectedLocation(null);
+    } catch (err) {
+      setActionError(errorMessage(err, "Donation failed"));
     } finally {
       setChoiceBusy(false);
     }
@@ -184,23 +207,35 @@ export default function PlayPage() {
   async function onTaxOffice() {
     if (!playthroughId || !playthrough) return;
     if (playthrough.status === "playing" && playthrough.season === "april") {
-      await startFiling({ playthroughId });
+      setActionError(null);
+      try {
+        await startFiling({ playthroughId });
+      } catch (err) {
+        setActionError(errorMessage(err, "Could not open Tax Office"));
+      }
     }
   }
 
   async function onCancelFiling() {
     if (!playthroughId || filingBusy) return;
-    await cancelFiling({ playthroughId });
+    try {
+      await cancelFiling({ playthroughId });
+    } catch (err) {
+      setActionError(errorMessage(err, "Could not leave filing"));
+    }
   }
 
   async function onFile(filed: FiledReturn) {
     if (!playthroughId) return;
     setFilingBusy(true);
+    setActionError(null);
     try {
       await submitReturn({
         playthroughId,
         ...filed,
       });
+    } catch (err) {
+      setActionError(errorMessage(err, "Could not file return"));
     } finally {
       setFilingBusy(false);
     }
@@ -216,16 +251,17 @@ export default function PlayPage() {
   async function onAdvanceSeason() {
     if (!playthroughId) return;
     setAdvancing(true);
+    setActionError(null);
     try {
       await advanceSeason({ playthroughId });
       setSelectedLocation(null);
+    } catch (err) {
+      setActionError(errorMessage(err, "Could not advance season"));
     } finally {
       setAdvancing(false);
     }
   }
 
-  // During SSR/hydration, always render the same loading shell to avoid mismatches
-  // with localStorage-backed playthrough ids.
   if (!isClient) {
     return (
       <main className="flex flex-1 items-center justify-center p-8 text-tm-cream">
@@ -292,7 +328,13 @@ export default function PlayPage() {
                 : `You owe $${snap.balance.toLocaleString()}.`
               : null}
           </p>
-          <p className="mt-6 text-sm text-tm-cream/70">
+          {playthrough.score !== undefined ? (
+            <p className="mt-6 font-[family-name:var(--font-game)] text-3xl font-extrabold text-tm-gold">
+              Score {playthrough.score}
+              <span className="text-lg font-bold text-tm-cream/60"> / 100</span>
+            </p>
+          ) : null}
+          <p className="mt-4 text-sm text-tm-cream/70">
             Audit: {playthrough.auditResult ?? "none"}
           </p>
           <button
@@ -313,6 +355,11 @@ export default function PlayPage() {
   if (playthrough.status === "filing") {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {actionError ? (
+          <div className="shrink-0 border-b border-tm-danger/40 bg-tm-danger/20 px-4 py-2 text-sm text-tm-cream">
+            {actionError}
+          </div>
+        ) : null}
         <TaxWizard
           busy={filingBusy}
           onBack={() => void onCancelFiling()}
@@ -339,7 +386,9 @@ export default function PlayPage() {
         <TownMap
           unlockedLocationIds={unlockedLocationIds}
           activeLocationIds={activeLocationIds}
+          inputEnabled={!modalOpen}
           onSelectLocation={(locationId) => {
+            setActionError(null);
             if (locationId === "taxOffice" && playthrough.season === "april") {
               void onTaxOffice();
               return;
@@ -359,6 +408,18 @@ export default function PlayPage() {
           onAdvanceSeason={() => void onAdvanceSeason()}
           advancing={advancing}
         />
+        {actionError ? (
+          <div className="pointer-events-auto absolute bottom-16 left-1/2 z-40 w-[min(92%,28rem)] -translate-x-1/2 rounded-xl border-2 border-tm-danger/50 bg-black/85 px-4 py-3 text-center text-sm text-tm-cream shadow-lg">
+            {actionError}
+            <button
+              type="button"
+              className="ml-3 text-tm-gold underline"
+              onClick={() => setActionError(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {bankOpen && playthrough ? (
@@ -369,6 +430,7 @@ export default function PlayPage() {
           tfsaBalance={playthrough.tfsaBalance}
           rrspBalance={playthrough.rrspBalance}
           fhsaBalance={playthrough.fhsaBalance}
+          loanTaken={playthrough.flags.includes(PERSONAL_LOAN_FLAG)}
           busy={choiceBusy}
           onTransfer={(args) => void onBankTransfer(args)}
           onLoan={(amount) => void onBankLoan(amount)}
@@ -385,6 +447,7 @@ export default function PlayPage() {
       ) : scenarioForLocation ? (
         <DecisionModal
           scenario={scenarioForLocation}
+          cash={playthrough.cash}
           busy={choiceBusy}
           onChoose={(optionId) => void onChoose(optionId)}
           onClose={() => setSelectedLocation(null)}

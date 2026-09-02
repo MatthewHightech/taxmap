@@ -16,6 +16,9 @@ export function rollAudit(
     return { result: "passed", penalty: 0 };
   }
 
-  const penalty = Math.round(unreportedSideIncome * 1.25 + 250);
+  // Only penalize when there is hidden income to find; risk alone triggers audit, not a flat fee.
+  const hidden = Math.max(0, unreportedSideIncome);
+  const penalty =
+    hidden > 0 ? Math.round(hidden * 1.25 + 250) : 0;
   return { result: "failed", penalty };
 }

@@ -10,11 +10,13 @@ type TownMapProps = {
   /** Locations that still have an activity this season. */
   activeLocationIds: string[];
   onSelectLocation: (locationId: string) => void;
+  /** When false, keyboard/touch movement and Space interact are ignored. */
+  inputEnabled?: boolean;
   debugHotspots?: boolean;
 };
 
 /** How much larger the world is than the viewport (higher = more zoomed in). */
-const WORLD_ZOOM = 1.60;
+const WORLD_ZOOM = 1.6;
 /** Movement speed as fraction of world size per second. */
 const MOVE_SPEED = 0.22;
 /** Walk animation frames per second while moving. */
@@ -24,6 +26,8 @@ const START_X = 0.41;
 const START_Y = 0.64;
 /** Interact when player center is within this fraction of hotspot half-size. */
 const INTERACT_PADDING = 1.35;
+/** Shrink blockers slightly so interact rings still work at building edges. */
+const BLOCKER_INSET = 0.12;
 
 type Keys = {
   w: boolean;
@@ -36,10 +40,51 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function pointInBlocker(
+  px: number,
+  py: number,
+  worldSize: number,
+): boolean {
+  for (const spot of HOTSPOTS) {
+    const insetX = spot.w * BLOCKER_INSET;
+    const insetY = spot.h * BLOCKER_INSET;
+    const left = ((spot.x + insetX) / 100) * worldSize;
+    const right = ((spot.x + spot.w - insetX) / 100) * worldSize;
+    const top = ((spot.y + insetY) / 100) * worldSize;
+    const bottom = ((spot.y + spot.h - insetY) / 100) * worldSize;
+    if (px >= left && px <= right && py >= top && py <= bottom) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Try axis-separated movement so sliding along buildings works. */
+function moveWithCollision(
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+  worldSize: number,
+  margin: number,
+): { x: number; y: number } {
+  const nextX = clamp(x + dx, margin, worldSize - margin);
+  const nextY = clamp(y + dy, margin, worldSize - margin);
+
+  if (!pointInBlocker(nextX, y, worldSize)) {
+    x = nextX;
+  }
+  if (!pointInBlocker(x, nextY, worldSize)) {
+    y = nextY;
+  }
+  return { x, y };
+}
+
 export function TownMap({
   unlockedLocationIds,
   activeLocationIds,
   onSelectLocation,
+  inputEnabled = true,
   debugHotspots = false,
 }: TownMapProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -53,6 +98,7 @@ export function TownMap({
   const activeRef = useRef(new Set<string>());
   const nearbyRef = useRef<string | null>(null);
   const onSelectRef = useRef(onSelectLocation);
+  const inputEnabledRef = useRef(inputEnabled);
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
 
@@ -85,6 +131,13 @@ export function TownMap({
   useEffect(() => {
     onSelectRef.current = onSelectLocation;
   }, [onSelectLocation]);
+
+  useEffect(() => {
+    inputEnabledRef.current = inputEnabled;
+    if (!inputEnabled) {
+      keysRef.current = { w: false, a: false, s: false, d: false };
+    }
+  }, [inputEnabled]);
 
   const measure = useCallback(() => {
     const el = viewportRef.current;
@@ -179,26 +232,30 @@ export function TownMap({
         const keys = keysRef.current;
         let dx = 0;
         let dy = 0;
-        if (keys.w) dy -= 1;
-        if (keys.s) dy += 1;
-        if (keys.a) dx -= 1;
-        if (keys.d) dx += 1;
+        if (inputEnabledRef.current) {
+          if (keys.w) dy -= 1;
+          if (keys.s) dy += 1;
+          if (keys.a) dx -= 1;
+          if (keys.d) dx += 1;
+        }
 
         const moving = dx !== 0 || dy !== 0;
         if (moving) {
           const len = Math.hypot(dx, dy) || 1;
           const speed = worldSize * MOVE_SPEED;
           const margin = worldSize * 0.035;
-          playerRef.current.x = clamp(
-            playerRef.current.x + (dx / len) * speed * dt,
+          const stepX = (dx / len) * speed * dt;
+          const stepY = (dy / len) * speed * dt;
+          const next = moveWithCollision(
+            playerRef.current.x,
+            playerRef.current.y,
+            stepX,
+            stepY,
+            worldSize,
             margin,
-            worldSize - margin,
           );
-          playerRef.current.y = clamp(
-            playerRef.current.y + (dy / len) * speed * dt,
-            margin,
-            worldSize - margin,
-          );
+          playerRef.current.x = next.x;
+          playerRef.current.y = next.y;
 
           if (dx < 0) facingRef.current = "left";
           if (dx > 0) facingRef.current = "right";
@@ -291,6 +348,7 @@ export function TownMap({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!inputEnabledRef.current) return;
       if (isTypingTarget(event.target)) return;
       if (
         event.code === "KeyW" ||
@@ -326,6 +384,11 @@ export function TownMap({
     };
   }, []);
 
+  function setPad(dir: keyof Keys, down: boolean) {
+    if (!inputEnabled) return;
+    keysRef.current[dir] = down;
+  }
+
   const spriteSize = view.worldSize > 0 ? view.worldSize * 0.085 : 96;
   const nearbySpot = HOTSPOTS.find((spot) => spot.id === view.nearbyId);
 
@@ -335,7 +398,7 @@ export function TownMap({
       className="relative h-full min-h-[420px] w-full flex-1 overflow-hidden bg-tm-green-900 outline-none"
       tabIndex={0}
       role="application"
-      aria-label="Town map. Use W A S D to walk. Press Spacebar near a building to enter."
+      aria-label="Town map. Use W A S D or on-screen pad to walk. Press Spacebar or Enter near a building to enter."
       onMouseDown={() => viewportRef.current?.focus()}
     >
       {view.worldSize > 0 ? (
@@ -422,7 +485,7 @@ export function TownMap({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-full border-2 border-tm-gold/70 bg-black/75 px-4 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <div className="pointer-events-none absolute bottom-4 left-4 z-30 hidden rounded-full border-2 border-tm-gold/70 bg-black/75 px-4 py-2 font-[family-name:var(--font-game)] text-xs font-bold text-tm-cream shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md md:block">
         <span className="text-tm-gold">WASD</span> walk
         {" · "}
         <span className="text-tm-gold">Spacebar</span> select
@@ -430,6 +493,83 @@ export function TownMap({
           <span className="text-tm-cream/80"> · {nearbySpot.label}</span>
         ) : null}
       </div>
+
+      {/* Touch / mobile controls */}
+      <div className="pointer-events-none absolute bottom-4 right-4 z-30 flex items-end gap-3 md:hidden">
+        {nearbySpot ? (
+          <button
+            type="button"
+            disabled={!inputEnabled}
+            className="pointer-events-auto rounded-full border-2 border-tm-gold bg-tm-gold px-4 py-3 font-[family-name:var(--font-game)] text-sm font-extrabold text-tm-ink disabled:opacity-40"
+            onClick={() => {
+              if (nearbyRef.current) onSelectLocation(nearbyRef.current);
+            }}
+          >
+            Enter
+          </button>
+        ) : null}
+        <div className="pointer-events-auto grid grid-cols-3 gap-1">
+          <span />
+          <PadButton
+            label="↑"
+            disabled={!inputEnabled}
+            onDown={() => setPad("w", true)}
+            onUp={() => setPad("w", false)}
+          />
+          <span />
+          <PadButton
+            label="←"
+            disabled={!inputEnabled}
+            onDown={() => setPad("a", true)}
+            onUp={() => setPad("a", false)}
+          />
+          <PadButton
+            label="↓"
+            disabled={!inputEnabled}
+            onDown={() => setPad("s", true)}
+            onUp={() => setPad("s", false)}
+          />
+          <PadButton
+            label="→"
+            disabled={!inputEnabled}
+            onDown={() => setPad("d", true)}
+            onUp={() => setPad("d", false)}
+          />
+        </div>
+      </div>
     </div>
+  );
+}
+
+function PadButton({
+  label,
+  disabled,
+  onDown,
+  onUp,
+}: {
+  label: string;
+  disabled?: boolean;
+  onDown: () => void;
+  onUp: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-label={`Move ${label}`}
+      className="flex h-12 w-12 select-none items-center justify-center rounded-xl border-2 border-tm-gold/70 bg-black/75 font-[family-name:var(--font-game)] text-lg font-extrabold text-tm-cream touch-none disabled:opacity-40"
+      onPointerDown={(event) => {
+        event.preventDefault();
+        (event.currentTarget as HTMLButtonElement).setPointerCapture(
+          event.pointerId,
+        );
+        onDown();
+      }}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      onPointerLeave={onUp}
+    >
+      {label}
+    </button>
   );
 }

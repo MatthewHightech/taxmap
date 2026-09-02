@@ -20,6 +20,7 @@ type BankModalProps = {
   rrspBalance?: number;
   fhsaBalance?: number;
   investments: number;
+  loanTaken?: boolean;
   busy?: boolean;
   onTransfer: (args: {
     deposits: Array<{ accountId: BankAccountId; amount: number }>;
@@ -51,6 +52,7 @@ export function BankModal({
   rrspBalance,
   fhsaBalance,
   investments,
+  loanTaken = false,
   busy,
   onTransfer,
   onLoan,
@@ -221,18 +223,20 @@ export function BankModal({
             </button>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || loanTaken}
               onClick={() => {
                 setError(null);
                 setView("loan");
               }}
-              className="w-full rounded-xl border-2 border-tm-green-300/50 bg-tm-green-900/80 px-4 py-4 text-left transition hover:border-tm-gold disabled:opacity-60"
+              className="w-full rounded-xl border-2 border-tm-green-300/50 bg-tm-green-900/80 px-4 py-4 text-left transition hover:border-tm-gold disabled:cursor-not-allowed disabled:opacity-45"
             >
               <div className="font-[family-name:var(--font-game)] text-lg font-extrabold text-tm-cream">
                 Take out Loan
               </div>
               <p className="mt-1 text-sm text-tm-cream/70">
-                Borrow cash now. A 10% fee is added to your debt.
+                {loanTaken
+                  ? "You already took a personal loan this run."
+                  : "Borrow cash once. A 10% fee is added to your debt."}
               </p>
             </button>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { donationCreditBreakdown } from "../../convex/lib/donations";
+import { federalDonationCredit } from "../../convex/lib/donations";
 import {
   computeFederalReturn,
   federalTuitionCredit,
@@ -129,7 +129,7 @@ function LedgerRow({
 }
 
 function LedgerPanel({ ledger }: { ledger: YearLedger }) {
-  const donationPreview = donationCreditBreakdown(ledger.charitableDonations);
+  const donationPreview = federalDonationCredit(ledger.charitableDonations);
 
   return (
     <>
@@ -190,8 +190,8 @@ function LedgerPanel({ ledger }: { ledger: YearLedger }) {
           value={`$${ledger.charitableDonations.toLocaleString()}`}
         />
         <LedgerRow
-          label="Donation credit (fed. + ON est.)"
-          value={`$${donationPreview.total.toLocaleString()}`}
+          label="Donation credit (fed. est.)"
+          value={`$${donationPreview.toLocaleString()}`}
         />
       </div>
 
@@ -485,11 +485,10 @@ export function TaxWizard({ ledger, busy, onBack, onFile }: TaxWizardProps) {
                   ) : null}
                   {parseDollars(donations) > 0 ? (
                     <p className="text-sm text-tm-green-300">
-                      Estimated donation credit (fed. + ON) on what you entered:
-                      $
-                      {donationCreditBreakdown(
+                      Estimated federal donation credit on what you entered: $
+                      {federalDonationCredit(
                         parseDollars(donations),
-                      ).total.toLocaleString()}
+                      ).toLocaleString()}
                     </p>
                   ) : null}
                 </div>
@@ -513,6 +512,13 @@ export function TaxWizard({ ledger, busy, onBack, onFile }: TaxWizardProps) {
                       disabled={busy}
                     />
                   </div>
+                  {parseDollars(withheld) > ledger.withholdings ? (
+                    <p className="text-sm font-semibold text-red-300">
+                      You entered more than your ledger withheld ($
+                      {ledger.withholdings.toLocaleString()}). Filing will cap
+                      at the true amount — no extra refund from typing higher.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
